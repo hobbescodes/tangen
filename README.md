@@ -17,7 +17,7 @@ Currently supporting **TanStack Query** with more integrations on the way.
 
 ## Features
 
-- **TanStack Query** - Generate type-safe `queryOptions` and `mutationOptions` from your GraphQL operations
+- **TanStack Query** - Generate type-safe `queryOptions` and `mutationOptions` from your GraphQL operations or OpenAPI specs
 - **TanStack Form** - Generate type-safe form hooks and validation from your schema's input types _(coming soon)_
 - **TanStack DB** - Generate collection definitions from your schema _(coming soon)_
 - **TanStack Pacer** - Generate rate-limited operation wrappers _(coming soon)_
@@ -25,7 +25,7 @@ Currently supporting **TanStack Query** with more integrations on the way.
 ## Supported Data Sources
 
 - **GraphQL** - Via introspection
-- More coming soon
+- **OpenAPI** - Via spec file (local or remote URL)
 
 ## Installation
 
@@ -44,11 +44,21 @@ pnpm add -D tangen
 
 tangen generates code that uses these packages, so you'll need them in your project:
 
+**For GraphQL sources:**
+
 ```bash
 bun add @tanstack/react-query graphql-request
 ```
 
+**For OpenAPI sources:**
+
+```bash
+bun add @tanstack/react-query @better-fetch/fetch zod
+```
+
 ## Quick Start
+
+### GraphQL
 
 1. **Initialize configuration**
 
@@ -66,10 +76,16 @@ bun add @tanstack/react-query graphql-request
    import { defineConfig } from "tangen";
 
    export default defineConfig({
-     schema: {
-       url: "http://localhost:4000/graphql",
-     },
-     documents: "./src/graphql/**/*.graphql",
+     sources: [
+       {
+         name: "graphql",
+         type: "graphql",
+         schema: {
+           url: "http://localhost:4000/graphql",
+         },
+         documents: "./src/graphql/**/*.graphql",
+       },
+     ],
      output: {
        dir: "./src/generated",
      },
@@ -137,53 +153,160 @@ bun add @tanstack/react-query graphql-request
    }
    ```
 
+### OpenAPI
+
+1. **Initialize configuration**
+
+   ```bash
+   bunx tangen init
+   ```
+
+2. **Configure your OpenAPI spec**
+
+   Edit `tangen.config.ts` to use an OpenAPI source:
+
+   ```typescript
+   import { defineConfig } from "tangen";
+
+   export default defineConfig({
+     sources: [
+       {
+         name: "api",
+         type: "openapi",
+         spec: "./openapi.yaml", // or a remote URL
+         // Optional: filter paths
+         // include: ["/users/**", "/posts/**"],
+         // exclude: ["/internal/**"],
+       },
+     ],
+     output: {
+       dir: "./src/generated",
+     },
+   });
+   ```
+
+3. **Generate code**
+
+   ```bash
+   bunx tangen generate
+   ```
+
+4. **Use the generated code**
+
+   ```typescript
+   import { useQuery, useMutation } from "@tanstack/react-query";
+   import {
+     listUsersQueryOptions,
+     createUserMutationOptions,
+   } from "./generated/api/operations";
+
+   function UserList() {
+     const { data, isLoading } = useQuery(
+       listUsersQueryOptions({ limit: 10, offset: 0 })
+     );
+
+     if (isLoading) return <div>Loading...</div>;
+
+     return (
+       <ul>
+         {data?.map((user) => (
+           <li key={user.id}>{user.name}</li>
+         ))}
+       </ul>
+     );
+   }
+   ```
+
 ## Configuration
 
-### Full Configuration Example
+tangen uses a multi-source configuration that supports multiple data sources:
 
 ```typescript
 import { defineConfig } from "tangen";
 
 export default defineConfig({
-  // Schema introspection settings
-  schema: {
-    url: "http://localhost:4000/graphql",
-    // Optional: headers for introspection request
-    headers: {
-      "x-api-key": process.env.API_KEY,
+  sources: [
+    {
+      name: "graphql",
+      type: "graphql",
+      schema: {
+        url: "http://localhost:4000/graphql",
+        headers: {
+          "x-api-key": process.env.API_KEY,
+        },
+      },
+      documents: "./src/graphql/**/*.graphql",
+      scalars: {
+        DateTime: "Date",
+      },
     },
-  },
-  // Optional: custom scalar type mappings
-  scalars: {
-    DateTime: "Date",
-    JSON: "Record<string, unknown>",
-  },
-  // Glob pattern(s) for GraphQL operation files
-  documents: "./src/graphql/**/*.graphql",
-  // Output configuration
+    {
+      name: "rest-api",
+      type: "openapi",
+      spec: "https://api.example.com/openapi.json",
+      headers: {
+        Authorization: `Bearer ${process.env.API_TOKEN}`,
+      },
+      include: ["/users/**", "/posts/**"],
+      exclude: ["/internal/**"],
+    },
+  ],
   output: {
     dir: "./src/generated",
-    client: "client.ts", // default
-    types: "types.ts", // default
-    operations: "operations.ts", // default
   },
 });
 ```
 
-### Configuration Options
+### GraphQL Source Options
 
-| Option              | Type                     | Required | Description                                    |
-| ------------------- | ------------------------ | -------- | ---------------------------------------------- |
-| `schema.url`        | `string`                 | Yes      | GraphQL endpoint URL for introspection         |
-| `schema.headers`    | `Record<string, string>` | No       | Headers to send with introspection request     |
-| `scalars`           | `Record<string, string>` | No       | Custom scalar type mappings                    |
-| `documents`         | `string \| string[]`     | Yes      | Glob pattern(s) for `.graphql` files           |
-| `output.dir`        | `string`                 | Yes      | Output directory for generated files           |
-| `output.client`     | `string`                 | No       | Client filename (default: `client.ts`)         |
-| `output.types`      | `string`                 | No       | Types filename (default: `types.ts`)           |
-| `output.operations` | `string`                 | No       | Operations filename (default: `operations.ts`) |
+| Option     | Type                     | Required | Description                                |
+| ---------- | ------------------------ | -------- | ------------------------------------------ |
+| `name`     | `string`                 | Yes      | Unique name for this source                |
+| `type`     | `"graphql"`              | Yes      | Source type                                |
+| `schema.url` | `string`               | Yes      | GraphQL endpoint URL for introspection     |
+| `schema.headers` | `Record<string, string>` | No  | Headers to send with introspection request |
+| `documents` | `string \| string[]`    | Yes      | Glob pattern(s) for `.graphql` files       |
+| `scalars`  | `Record<string, string>` | No       | Custom scalar type mappings                |
 
-### Default Scalar Mappings
+### OpenAPI Source Options
+
+| Option    | Type                     | Required | Description                                |
+| --------- | ------------------------ | -------- | ------------------------------------------ |
+| `name`    | `string`                 | Yes      | Unique name for this source                |
+| `type`    | `"openapi"`              | Yes      | Source type                                |
+| `spec`    | `string`                 | Yes      | Path to OpenAPI spec (local file or URL)   |
+| `headers` | `Record<string, string>` | No       | Headers for fetching remote spec           |
+| `include` | `string[]`               | No       | Glob patterns for paths to include         |
+| `exclude` | `string[]`               | No       | Glob patterns for paths to exclude         |
+
+### Output Options
+
+| Option       | Type     | Required | Description                                    |
+| ------------ | -------- | -------- | ---------------------------------------------- |
+| `dir`        | `string` | Yes      | Output directory for generated files           |
+| `client`     | `string` | No       | Client filename (default: `client.ts`)         |
+| `types`      | `string` | No       | Types filename (default: `types.ts`)           |
+| `operations` | `string` | No       | Operations filename (default: `operations.ts`) |
+
+### Output Directory Structure
+
+With multiple sources, files are organized by source name:
+
+```
+src/generated/
+├── graphql/           # GraphQL source output
+│   ├── client.ts      # graphql-request client
+│   ├── types.ts       # TypeScript types
+│   └── operations.ts  # TanStack Query helpers
+└── rest-api/          # OpenAPI source output
+    ├── client.ts      # better-fetch client
+    ├── types.ts       # Zod schemas + TypeScript types
+    └── operations.ts  # TanStack Query helpers
+```
+
+With a single source, files are placed directly in the output directory without nesting.
+
+### Default Scalar Mappings (GraphQL)
 
 tangen includes sensible defaults for common scalars:
 
@@ -204,19 +327,17 @@ Override any of these using the `scalars` config option.
 
 ## Generated Output
 
-### `client.ts`
+### GraphQL Output
 
-A configured `graphql-request` client with helpers:
+#### `client.ts`
+
+A configured `graphql-request` client:
 
 ```typescript
 import { GraphQLClient } from "graphql-request";
 
 const endpoint = "http://localhost:4000/graphql";
 
-/**
- * Returns a GraphQL client instance.
- * Customize this function to add dynamic headers (e.g., auth tokens).
- */
 export const getClient = async () => {
   return new GraphQLClient(endpoint, {
     headers: {
@@ -226,7 +347,7 @@ export const getClient = async () => {
 };
 ```
 
-### `types.ts`
+#### `types.ts`
 
 TypeScript types generated from your schema and operations:
 
@@ -254,7 +375,7 @@ export type GetUserQueryVariables = { id: string };
 export type GetUserQuery = { user: UserFieldsFragment | null };
 ```
 
-### `operations.ts`
+#### `operations.ts`
 
 Ready-to-use `queryOptions` and `mutationOptions`:
 
@@ -277,6 +398,101 @@ export const createUserMutationOptions = () =>
   });
 ```
 
+### OpenAPI Output
+
+#### `client.ts`
+
+A configured `better-fetch` client with path/query helpers:
+
+```typescript
+import { createFetch } from "@better-fetch/fetch";
+
+const baseURL = "https://api.example.com/v1";
+
+export const $fetch = createFetch({
+  baseURL,
+  // Customize headers, retry logic, etc.
+});
+
+export function buildPath(
+  template: string,
+  params: Record<string, string | number>
+): string {
+  // Substitutes {param} placeholders in URL templates
+}
+
+export function buildQuery(
+  params: Record<string, string | number | boolean | undefined>
+): string {
+  // Builds query strings from params objects
+}
+```
+
+#### `types.ts`
+
+Zod schemas and TypeScript types from OpenAPI components:
+
+```typescript
+import { z } from "zod";
+
+// Zod Schemas
+export const userSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string().email(),
+  createdAt: z.string().datetime(),
+});
+
+export const createUserRequestSchema = z.object({
+  name: z.string(),
+  email: z.string().email(),
+});
+
+// TypeScript Types (inferred from Zod schemas)
+export type User = z.infer<typeof userSchema>;
+export type CreateUserRequest = z.infer<typeof createUserRequestSchema>;
+
+// Operation parameter types
+export type ListUsersParams = {
+  limit?: number;
+  offset?: number;
+};
+```
+
+#### `operations.ts`
+
+TanStack Query helpers using better-fetch:
+
+```typescript
+export const listUsersQueryOptions = (params: ListUsersParams) =>
+  queryOptions({
+    queryKey: ["listUsers", params],
+    queryFn: async () => {
+      const query = buildQuery({ limit: params.limit, offset: params.offset });
+      const url = query ? `/users?${query}` : "/users";
+      const { data, error } = await $fetch<ListUsersResponse>(url, {
+        output: listUsersResponseSchema,
+      });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+export const createUserMutationOptions = () =>
+  mutationOptions({
+    mutationKey: ["createUser"],
+    mutationFn: async (body: CreateUserRequest) => {
+      const { data, error } = await $fetch<CreateUserResponse>("/users", {
+        method: "POST",
+        output: createUserResponseSchema,
+        body,
+      });
+      if (error) throw error;
+      return data;
+    },
+  });
+```
+
 ## CLI Reference
 
 ### `tangen init`
@@ -287,12 +503,18 @@ Initialize a new `tangen.config.ts` file.
 tangen init [options]
 
 Options:
-  -f, --force    Overwrite existing config file
+  -f, --force           Overwrite existing config file
+```
+
+Example:
+
+```bash
+bunx tangen init
 ```
 
 ### `tangen generate`
 
-Generate TypeScript code from your GraphQL schema and operations.
+Generate TypeScript code from your configured sources.
 
 ```bash
 tangen generate [options]
@@ -309,14 +531,15 @@ Options:
 
 When using `--watch`, tangen will:
 
-- Watch your config file and all GraphQL documents for changes
-- Automatically regenerate when files change
-- Cache the schema between document changes for faster rebuilds
-- Continue watching even if generation fails (e.g., invalid GraphQL syntax)
+- Watch your config file for changes
+- Watch GraphQL documents (`.graphql` files) for changes
+- Watch local OpenAPI spec files for changes
+- Cache schemas between file changes for faster rebuilds
+- Continue watching even if generation fails (e.g., invalid syntax)
 
 Interactive commands in watch mode:
 
-- Press `r` to force a full refresh (re-introspects schema)
+- Press `r` to force a full refresh (re-fetches all schemas including remote)
 - Press `q` to quit
 
 Example:
@@ -334,7 +557,6 @@ bunx tangen generate --watch --config ./config/tangen.config.ts
 - TanStack Form integration
 - TanStack DB integration
 - TanStack Pacer integration
-- Additional data source support
 
 ## Contributing
 

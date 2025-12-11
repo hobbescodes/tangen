@@ -35,7 +35,7 @@ export const initCommand = defineCommand({
 
     consola.success("Created tangen.config.ts");
     consola.info("Next steps:");
-    consola.info("  1. Update the schema URL in tangen.config.ts");
+    consola.info("  1. Update the schema URL/spec in tangen.config.ts");
     consola.info("  2. Create your GraphQL operation files (.graphql)");
     consola.info("  3. Run `tangen generate` to generate TypeScript code");
   },

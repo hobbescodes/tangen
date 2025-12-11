@@ -37,8 +37,7 @@ describe("init command logic", () => {
 
       const content = await readFile(configPath, "utf-8");
       expect(content).toContain("defineConfig");
-      expect(content).toContain("schema");
-      expect(content).toContain("documents");
+      expect(content).toContain("sources");
       expect(content).toContain("output");
     });
   });
@@ -69,6 +68,13 @@ describe("init command logic", () => {
       expect(config).toContain("export default defineConfig");
     });
 
+    it("includes sources configuration", () => {
+      const config = generateDefaultConfig();
+
+      expect(config).toContain("sources:");
+      expect(config).toContain('type: "graphql"');
+    });
+
     it("includes schema configuration", () => {
       const config = generateDefaultConfig();
 
@@ -88,9 +94,13 @@ describe("init command logic", () => {
 
       expect(config).toContain("output:");
       expect(config).toContain("dir:");
-      expect(config).toContain("client:");
-      expect(config).toContain("types:");
-      expect(config).toContain("operations:");
+    });
+
+    it("includes commented OpenAPI source example", () => {
+      const config = generateDefaultConfig();
+
+      expect(config).toContain('// 	type: "openapi"');
+      expect(config).toContain("// 	spec:");
     });
   });
 });

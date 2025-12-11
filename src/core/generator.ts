@@ -4,25 +4,27 @@ import { dirname, join, relative } from "node:path";
 
 import consola from "consola";
 
-import { generateClient } from "../generators/client";
-import { generateOperations } from "../generators/operations";
-import { generateTypes } from "../generators/types";
-import { loadDocuments } from "./documents";
-import { introspectSchema } from "./introspection";
+import { getAdapter } from "@/adapters";
+import { hasMultipleSources } from "./config";
 
-import type { GraphQLSchema } from "graphql";
-import type { TangenConfig } from "./config";
+import type { GraphQLSourceConfig, SourceConfig, TangenConfig } from "./config";
 
 export interface GenerateOptions {
   config: TangenConfig;
   force?: boolean;
-  /** Cached schema to use instead of introspecting. Used by watch mode for faster rebuilds. */
-  cachedSchema?: GraphQLSchema;
+  /**
+   * Cached schemas by source name.
+   * Used by watch mode for faster rebuilds when only documents change.
+   */
+  cachedSchemas?: Map<string, unknown>;
 }
 
 export interface GenerateResult {
-  /** The introspected or cached schema */
-  schema: GraphQLSchema;
+  /**
+   * Generated schemas by source name.
+   * These can be cached and passed back for incremental rebuilds.
+   */
+  schemas: Map<string, unknown>;
 }
 
 /**
@@ -39,40 +41,103 @@ async function fileExists(path: string): Promise<boolean> {
 
 /**
  * Main generation orchestrator
+ * Processes all configured sources and generates code for each
  */
 export async function generate(
   options: GenerateOptions,
 ): Promise<GenerateResult> {
-  const { config, force = false, cachedSchema } = options;
-  const { schema: schemaConfig, output, scalars } = config;
+  const { config, force = false, cachedSchemas } = options;
+  const { sources, output } = config;
 
-  // Step 1: Introspect schema (or use cached)
-  let schema: GraphQLSchema;
+  const isMultiSource = hasMultipleSources(config);
+  const generatedSchemas = new Map<string, unknown>();
+
+  // Process each source
+  for (const source of sources) {
+    await generateForSource({
+      source,
+      config,
+      output,
+      force,
+      isMultiSource,
+      cachedSchema: cachedSchemas?.get(source.name),
+      generatedSchemas,
+    });
+  }
+
+  // Final success message
+  const sourceNames = sources.map((s) => s.name).join(", ");
+  consola.box({
+    title: "Generation Complete",
+    message: `Generated code for sources: ${sourceNames}\nOutput directory: ${output.dir}`,
+  });
+
+  return { schemas: generatedSchemas };
+}
+
+interface GenerateForSourceOptions {
+  source: SourceConfig;
+  config: TangenConfig;
+  output: TangenConfig["output"];
+  force: boolean;
+  isMultiSource: boolean;
+  cachedSchema?: unknown;
+  generatedSchemas: Map<string, unknown>;
+}
+
+/**
+ * Generate code for a single source
+ */
+async function generateForSource(
+  options: GenerateForSourceOptions,
+): Promise<void> {
+  const {
+    source,
+    config,
+    output,
+    force,
+    isMultiSource,
+    cachedSchema,
+    generatedSchemas,
+  } = options;
+
+  consola.info(`\nProcessing source: ${source.name} (${source.type})`);
+
+  // Get the adapter for this source type
+  const adapter = getAdapter(source.type);
+
+  // Determine output directory (nested by source name if multi-source)
+  const baseOutputDir = join(process.cwd(), output.dir);
+  const sourceOutputDir = isMultiSource
+    ? join(baseOutputDir, source.name)
+    : baseOutputDir;
+
+  // Ensure output directory exists
+  await mkdir(sourceOutputDir, { recursive: true });
+
+  // Step 1: Load schema (or use cached)
+  let schema: unknown;
   if (cachedSchema) {
     consola.info("Using cached schema...");
     schema = cachedSchema;
   } else {
-    consola.info(`Introspecting schema from ${schemaConfig.url}...`);
-    schema = await introspectSchema({
-      url: schemaConfig.url,
-      headers: schemaConfig.headers,
-    });
-    consola.success("Schema introspection complete");
+    consola.info("Loading schema...");
+    schema = await adapter.loadSchema(source);
+    consola.success("Schema loaded");
   }
 
-  // Step 2: Load user documents
-  consola.info("Loading GraphQL documents...");
-  const documents = await loadDocuments(config.documents);
-  consola.success(
-    `Found ${documents.operations.length} operations and ${documents.fragments.length} fragments`,
-  );
+  // Store schema for caching
+  generatedSchemas.set(source.name, schema);
 
-  // Step 3: Ensure output directory exists
-  const outputDir = join(process.cwd(), output.dir);
-  await mkdir(outputDir, { recursive: true });
+  // Create generation context
+  const context = {
+    config,
+    outputDir: sourceOutputDir,
+    isMultiSource,
+  };
 
-  // Step 4: Generate client (only if it doesn't exist or force is true)
-  const clientPath = join(outputDir, output.client);
+  // Step 2: Generate client (only if it doesn't exist or force is true)
+  const clientPath = join(sourceOutputDir, output.client);
   const clientExists = await fileExists(clientPath);
 
   if (clientExists && !force) {
@@ -81,49 +146,58 @@ export async function generate(
     );
   } else {
     consola.info("Generating client...");
-    const clientCode = generateClient({ url: schemaConfig.url });
-    await writeFile(clientPath, clientCode, "utf-8");
+    const clientResult = adapter.generateClient(schema, source, context);
+    await writeFile(clientPath, clientResult.content, "utf-8");
     consola.success(`Generated ${output.client}`);
   }
 
-  // Step 5: Generate types
+  // Step 3: Generate types
   consola.info("Generating types...");
-  const typesResult = generateTypes({
-    schema,
-    documents,
-    scalars,
-  });
+  const typeGenOptions = {
+    scalars: getScalarsFromSource(source),
+  };
+  const typesResult = adapter.generateTypes(schema, source, typeGenOptions);
 
-  // Log any warnings about type references
-  for (const warning of typesResult.warnings) {
-    consola.warn(warning);
+  // Log any warnings
+  if (typesResult.warnings) {
+    for (const warning of typesResult.warnings) {
+      consola.warn(warning);
+    }
   }
 
-  const typesPath = join(outputDir, output.types);
-  await writeFile(typesPath, typesResult.code, "utf-8");
+  const typesPath = join(sourceOutputDir, output.types);
+  await writeFile(typesPath, typesResult.content, "utf-8");
   consola.success(`Generated ${output.types}`);
 
-  // Step 6: Generate operations
+  // Step 4: Generate operations
   consola.info("Generating operations...");
-  const operationsPath = join(outputDir, output.operations);
+  const operationsPath = join(sourceOutputDir, output.operations);
 
   // Calculate relative import paths
   const operationsDir = dirname(operationsPath);
   const clientImportPath = `./${relative(operationsDir, clientPath).replace(/\.ts$/, "")}`;
   const typesImportPath = `./${relative(operationsDir, typesPath).replace(/\.ts$/, "")}`;
 
-  const operationsCode = generateOperations({
-    documents,
+  const operationsResult = adapter.generateOperations(schema, source, {
     clientImportPath,
     typesImportPath,
+    includeSourceInQueryKey: isMultiSource,
   });
-  await writeFile(operationsPath, operationsCode, "utf-8");
+  await writeFile(operationsPath, operationsResult.content, "utf-8");
   consola.success(`Generated ${output.operations}`);
 
-  consola.box({
-    title: "Generation Complete",
-    message: `Files generated in ${output.dir}:\n  - ${output.client}\n  - ${output.types}\n  - ${output.operations}`,
-  });
+  // Log source generation complete
+  consola.success(`Source "${source.name}" complete`);
+}
 
-  return { schema };
+/**
+ * Extract scalars configuration from a source (if applicable)
+ */
+function getScalarsFromSource(
+  source: SourceConfig,
+): Record<string, string> | undefined {
+  if (source.type === "graphql") {
+    return (source as GraphQLSourceConfig).scalars;
+  }
+  return undefined;
 }

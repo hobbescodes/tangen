@@ -12,8 +12,12 @@ import {
 } from "../../core/watcher";
 
 import type { DotenvOptions } from "c12";
-import type { GraphQLSchema } from "graphql";
-import type { TangenConfig } from "../../core/config";
+import type {
+  GraphQLSourceConfig,
+  OpenAPISourceConfig,
+  TangenConfig,
+} from "../../core/config";
+import type { GenerateResult } from "../../core/generator";
 
 /**
  * Determine dotenv options based on CLI arguments
@@ -37,20 +41,63 @@ function getDotenvOptions(args: {
 }
 
 /**
- * Run the generation once and return the schema for caching
+ * Get all document patterns from GraphQL sources
+ */
+function getDocumentPatterns(config: TangenConfig): string[] {
+  const patterns: string[] = [];
+  for (const source of config.sources) {
+    if (source.type === "graphql") {
+      const graphqlSource = source as GraphQLSourceConfig;
+      const docs = graphqlSource.documents;
+      if (Array.isArray(docs)) {
+        patterns.push(...docs);
+      } else {
+        patterns.push(docs);
+      }
+    }
+  }
+  return patterns;
+}
+
+/**
+ * Check if a path is a URL
+ */
+function isUrl(path: string): boolean {
+  return path.startsWith("http://") || path.startsWith("https://");
+}
+
+/**
+ * Get all local OpenAPI spec files from sources
+ */
+function getOpenAPISpecFiles(config: TangenConfig): string[] {
+  const files: string[] = [];
+  for (const source of config.sources) {
+    if (source.type === "openapi") {
+      const openApiSource = source as OpenAPISourceConfig;
+      // Only watch local files, not URLs
+      if (!isUrl(openApiSource.spec)) {
+        files.push(openApiSource.spec);
+      }
+    }
+  }
+  return files;
+}
+
+/**
+ * Run the generation once and return the result for caching
  */
 async function runGeneration(options: {
   config: TangenConfig;
   force: boolean;
-  cachedSchema?: GraphQLSchema;
-}): Promise<GraphQLSchema> {
-  const { config, force, cachedSchema } = options;
+  cachedSchemas?: Map<string, unknown>;
+}): Promise<GenerateResult> {
+  const { config, force, cachedSchemas } = options;
 
   consola.start("Generating TanStack Query artifacts...");
-  const result = await generate({ config, force, cachedSchema });
+  const result = await generate({ config, force, cachedSchemas });
   consola.success("Generation complete!");
 
-  return result.schema;
+  return result;
 }
 
 /**
@@ -58,18 +105,30 @@ async function runGeneration(options: {
  */
 function displayWatchStatus(options: {
   configPath: string;
-  documentPatterns: string | string[];
+  documentPatterns: string[];
   documentCount: number;
+  sourceCount: number;
+  specFiles: string[];
 }): void {
-  const { configPath, documentPatterns, documentCount } = options;
-  const patterns = Array.isArray(documentPatterns)
-    ? documentPatterns.join(", ")
-    : documentPatterns;
+  const {
+    configPath,
+    documentPatterns,
+    documentCount,
+    sourceCount,
+    specFiles,
+  } = options;
+  const patterns = documentPatterns.join(", ");
 
   consola.info("");
   consola.info("Watching for changes...");
   consola.info(`  Config: ${basename(configPath)}`);
-  consola.info(`  Documents: ${patterns} (${documentCount} files)`);
+  consola.info(`  Sources: ${sourceCount}`);
+  if (documentPatterns.length > 0) {
+    consola.info(`  Documents: ${patterns} (${documentCount} files)`);
+  }
+  if (specFiles.length > 0) {
+    consola.info(`  OpenAPI specs: ${specFiles.length} file(s)`);
+  }
   consola.info("");
   consola.info("Press 'r' to force refresh, 'q' to quit");
 }
@@ -84,7 +143,13 @@ async function runWatchMode(options: {
   force: boolean;
 }): Promise<void> {
   let { configPath, config, dotenv, force } = options;
-  let cachedSchema: GraphQLSchema | undefined;
+  let cachedSchemas: Map<string, unknown> | undefined;
+
+  // Get document patterns for GraphQL sources
+  let documentPatterns = getDocumentPatterns(config);
+
+  // Get local OpenAPI spec files to watch
+  let specFiles = getOpenAPISpecFiles(config);
 
   // Initial generation
   clearConsole();
@@ -92,7 +157,8 @@ async function runWatchMode(options: {
   consola.info("");
 
   try {
-    cachedSchema = await runGeneration({ config, force });
+    const result = await runGeneration({ config, force });
+    cachedSchemas = result.schemas;
   } catch (error) {
     if (error instanceof Error) {
       consola.error(error.message);
@@ -123,14 +189,19 @@ async function runWatchMode(options: {
       });
       config = result.config;
       configPath = result.configPath;
+      documentPatterns = getDocumentPatterns(config);
+      specFiles = getOpenAPISpecFiles(config);
 
-      // Re-introspect schema since config may have changed URL/headers
-      cachedSchema = await runGeneration({ config, force });
+      // Re-introspect schema since config may have changed
+      const genResult = await runGeneration({ config, force });
+      cachedSchemas = genResult.schemas;
 
       displayWatchStatus({
         configPath,
-        documentPatterns: config.documents,
+        documentPatterns,
         documentCount: watcher.getWatchedDocuments().length,
+        sourceCount: config.sources.length,
+        specFiles,
       });
     } catch (error) {
       if (error instanceof Error) {
@@ -144,20 +215,28 @@ async function runWatchMode(options: {
     }
   };
 
-  // Handler for document file changes
+  // Handler for document file changes (GraphQL documents or OpenAPI specs)
   const handleDocumentChange = async () => {
     clearConsole();
-    consola.info("Documents changed, regenerating...");
+    consola.info("Files changed, regenerating...");
     consola.info("");
 
     try {
-      // Use cached schema for faster regeneration
-      cachedSchema = await runGeneration({ config, force, cachedSchema });
+      // Use cached schemas for faster regeneration (GraphQL only)
+      // For OpenAPI, we need to re-parse since the spec might have changed
+      const result = await runGeneration({
+        config,
+        force,
+        cachedSchemas,
+      });
+      cachedSchemas = result.schemas;
 
       displayWatchStatus({
         configPath,
-        documentPatterns: config.documents,
+        documentPatterns,
         documentCount: watcher.getWatchedDocuments().length,
+        sourceCount: config.sources.length,
+        specFiles,
       });
     } catch (error) {
       if (error instanceof Error) {
@@ -174,17 +253,20 @@ async function runWatchMode(options: {
   // Handler for force refresh (re-introspect schema)
   const handleRefresh = async () => {
     clearConsole();
-    consola.info("Force refreshing (re-introspecting schema)...");
+    consola.info("Force refreshing (re-loading all schemas)...");
     consola.info("");
 
     try {
-      // Clear cached schema to force re-introspection
-      cachedSchema = await runGeneration({ config, force });
+      // Clear cached schemas to force re-loading
+      const result = await runGeneration({ config, force });
+      cachedSchemas = result.schemas;
 
       displayWatchStatus({
         configPath,
-        documentPatterns: config.documents,
+        documentPatterns,
         documentCount: watcher.getWatchedDocuments().length,
+        sourceCount: config.sources.length,
+        specFiles,
       });
     } catch (error) {
       if (error instanceof Error) {
@@ -207,10 +289,18 @@ async function runWatchMode(options: {
     resolveQuit();
   };
 
+  // Combine GraphQL document patterns with OpenAPI spec files
+  // The watcher will watch both types of files
+  const filesToWatch = [
+    ...(documentPatterns.length > 0 ? documentPatterns : []),
+    ...specFiles,
+  ];
+
   // Create the watcher
   const watcher = createWatcher({
     configPath,
-    documentPatterns: config.documents,
+    documentPatterns:
+      filesToWatch.length > 0 ? filesToWatch : ["./**/*.graphql"],
     onConfigChange: handleConfigChange,
     onDocumentChange: handleDocumentChange,
     onError: (error) => {
@@ -230,8 +320,10 @@ async function runWatchMode(options: {
   // Display initial status
   displayWatchStatus({
     configPath,
-    documentPatterns: config.documents,
+    documentPatterns,
     documentCount: watcher.getWatchedDocuments().length,
+    sourceCount: config.sources.length,
+    specFiles,
   });
 
   // Wait for quit
@@ -241,7 +333,8 @@ async function runWatchMode(options: {
 export const generateCommand = defineCommand({
   meta: {
     name: "generate",
-    description: "Generate TanStack Query artifacts from GraphQL schema",
+    description:
+      "Generate TanStack Query artifacts from GraphQL/OpenAPI sources",
   },
   args: {
     config: {
