@@ -315,7 +315,7 @@ describe("multiSourceConfigSchema", () => {
     const result = multiSourceConfigSchema.safeParse(config);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.errors[0].message).toContain("unique");
+      expect(result.error.errors[0]?.message).toContain("unique");
     }
   });
 
@@ -340,9 +340,10 @@ describe("configSchema (unified with transformation)", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.sources).toHaveLength(1);
-      expect(result.data.sources[0].type).toBe("graphql");
-      expect(result.data.sources[0].name).toBe("graphql");
-      const graphqlSource = result.data.sources[0] as GraphQLSourceConfig;
+      const source = result.data.sources[0];
+      expect(source?.type).toBe("graphql");
+      expect(source?.name).toBe("graphql");
+      const graphqlSource = source as GraphQLSourceConfig;
       expect(graphqlSource.schema.url).toBe("http://localhost:4000/graphql");
       expect(graphqlSource.documents).toBe("./src/graphql/**/*.graphql");
     }
@@ -363,7 +364,7 @@ describe("configSchema (unified with transformation)", () => {
     const result = configSchema.safeParse(multiConfig);
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.sources[0].name).toBe("main-api");
+      expect(result.data.sources[0]?.name).toBe("main-api");
     }
   });
 
@@ -624,8 +625,9 @@ describe("loadTangenConfig", () => {
 
     // Config is normalized to multi-source format
     expect(result.config.sources).toHaveLength(1);
-    expect(result.config.sources[0].type).toBe("graphql");
-    const graphqlSource = result.config.sources[0] as GraphQLSourceConfig;
+    const source = result.config.sources[0];
+    expect(source?.type).toBe("graphql");
+    const graphqlSource = source as GraphQLSourceConfig;
     expect(graphqlSource.schema.url).toBe("http://localhost:4000/graphql");
     expect(graphqlSource.documents).toBe("./src/graphql/**/*.graphql");
     expect(result.config.output.dir).toBe("./src/generated");
@@ -658,8 +660,8 @@ describe("loadTangenConfig", () => {
     const result = await loadTangenConfig({ configPath });
 
     expect(result.config.sources).toHaveLength(2);
-    expect(result.config.sources[0].name).toBe("main-api");
-    expect(result.config.sources[1].name).toBe("users-api");
+    expect(result.config.sources[0]?.name).toBe("main-api");
+    expect(result.config.sources[1]?.name).toBe("users-api");
   });
 
   it("applies default values to loaded config", async () => {
