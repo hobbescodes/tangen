@@ -3,8 +3,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { openapiAdapter } from "./index";
+import { extractOperations } from "./schema";
 
 import type { OpenAPISourceConfig } from "@/core/config";
+import type { OpenAPIAdapterSchema } from "../types";
 
 const fixturesDir = join(__dirname, "../../test/fixtures/openapi");
 
@@ -335,5 +337,197 @@ describe("Remote OpenAPI Spec Loading", () => {
       );
       expect(configWithHeaders.headers?.["X-API-Key"]).toBe("my-api-key");
     });
+  });
+});
+
+describe("extractOperations", () => {
+  it("extracts operations from a loaded schema", async () => {
+    const config: OpenAPISourceConfig = {
+      name: "petstore",
+      type: "openapi",
+      spec: join(fixturesDir, "petstore.json"),
+    };
+
+    const schema = await openapiAdapter.loadSchema(config);
+    const operations = extractOperations(schema.document);
+
+    // Should have multiple operations
+    expect(operations.length).toBeGreaterThan(0);
+
+    // Check for expected operations
+    const operationIds = operations.map((op) => op.operationId);
+    expect(operationIds).toContain("listPets");
+    expect(operationIds).toContain("createPet");
+    expect(operationIds).toContain("getPet");
+  });
+
+  it("extracts path and query parameters", async () => {
+    const config: OpenAPISourceConfig = {
+      name: "petstore",
+      type: "openapi",
+      spec: join(fixturesDir, "petstore.json"),
+    };
+
+    const schema = await openapiAdapter.loadSchema(config);
+    const operations = extractOperations(schema.document);
+
+    // Find the getPet operation (has path param)
+    const getPetOp = operations.find((op) => op.operationId === "getPet");
+    expect(getPetOp).toBeDefined();
+    expect(getPetOp?.pathParams.length).toBe(1);
+    expect(getPetOp?.pathParams[0]?.name).toBe("petId");
+
+    // Find the listPets operation (has query params)
+    const listPetsOp = operations.find((op) => op.operationId === "listPets");
+    expect(listPetsOp).toBeDefined();
+    expect(listPetsOp?.queryParams.length).toBeGreaterThan(0);
+  });
+
+  it("extracts request body schema", async () => {
+    const config: OpenAPISourceConfig = {
+      name: "petstore",
+      type: "openapi",
+      spec: join(fixturesDir, "petstore.json"),
+    };
+
+    const schema = await openapiAdapter.loadSchema(config);
+    const operations = extractOperations(schema.document);
+
+    // Find the createPet operation (has request body)
+    const createPetOp = operations.find((op) => op.operationId === "createPet");
+    expect(createPetOp).toBeDefined();
+    expect(createPetOp?.requestBody).toBeDefined();
+  });
+
+  it("extracts response schema", async () => {
+    const config: OpenAPISourceConfig = {
+      name: "petstore",
+      type: "openapi",
+      spec: join(fixturesDir, "petstore.json"),
+    };
+
+    const schema = await openapiAdapter.loadSchema(config);
+    const operations = extractOperations(schema.document);
+
+    // Find operations with response schemas
+    const getPetOp = operations.find((op) => op.operationId === "getPet");
+    expect(getPetOp).toBeDefined();
+    expect(getPetOp?.responseSchema).toBeDefined();
+  });
+
+  it("returns empty array for document with no paths", () => {
+    const emptyDoc = {
+      openapi: "3.0.0",
+      info: { title: "Empty API", version: "1.0.0" },
+    };
+
+    const operations = extractOperations(
+      emptyDoc as OpenAPIAdapterSchema["document"],
+    );
+    expect(operations).toEqual([]);
+  });
+});
+
+describe("OpenAPI Types Generation Edge Cases", () => {
+  it("handles empty operations gracefully", async () => {
+    const config: OpenAPISourceConfig = {
+      name: "petstore",
+      type: "openapi",
+      spec: join(fixturesDir, "petstore.json"),
+    };
+
+    const schema = await openapiAdapter.loadSchema(config);
+    const result = openapiAdapter.generateTypes(schema, config, {});
+
+    // Should still generate valid TypeScript
+    expect(result.content).toContain("import { z }");
+    expect(result.filename).toBe("types.ts");
+  });
+
+  it("generates Zod string validators for formatted strings", async () => {
+    const config: OpenAPISourceConfig = {
+      name: "petstore",
+      type: "openapi",
+      spec: join(fixturesDir, "petstore.json"),
+    };
+
+    const schema = await openapiAdapter.loadSchema(config);
+    const result = openapiAdapter.generateTypes(schema, config, {});
+
+    // The petstore fixture has date-time formatted strings
+    expect(result.content).toContain("z.string()");
+  });
+
+  it("generates enum schemas from OpenAPI enums", async () => {
+    const config: OpenAPISourceConfig = {
+      name: "petstore",
+      type: "openapi",
+      spec: join(fixturesDir, "petstore.json"),
+    };
+
+    const schema = await openapiAdapter.loadSchema(config);
+    const result = openapiAdapter.generateTypes(schema, config, {});
+
+    // The petstore fixture has Species and PetStatus enums
+    expect(result.content).toContain("z.enum(");
+  });
+});
+
+describe("OpenAPI Operations Generation Edge Cases", () => {
+  it("handles operations with both path params and body", async () => {
+    const config: OpenAPISourceConfig = {
+      name: "petstore",
+      type: "openapi",
+      spec: join(fixturesDir, "petstore.json"),
+    };
+
+    const schema = await openapiAdapter.loadSchema(config);
+    const result = openapiAdapter.generateOperations(schema, config, {
+      clientImportPath: "./client",
+      typesImportPath: "./types",
+      includeSourceInQueryKey: false,
+    });
+
+    // updatePet has both path param and body
+    expect(result.content).toContain("updatePetMutationOptions");
+    expect(result.content).toContain("mutationOptions");
+  });
+
+  it("handles operations with no params or body", async () => {
+    const config: OpenAPISourceConfig = {
+      name: "petstore",
+      type: "openapi",
+      spec: join(fixturesDir, "petstore.json"),
+    };
+
+    const schema = await openapiAdapter.loadSchema(config);
+    const result = openapiAdapter.generateOperations(schema, config, {
+      clientImportPath: "./client",
+      typesImportPath: "./types",
+      includeSourceInQueryKey: false,
+    });
+
+    // Should have proper imports
+    expect(result.content).toContain('from "./client"');
+    expect(result.content).toContain('from "./types"');
+  });
+
+  it("handles DELETE operations", async () => {
+    const config: OpenAPISourceConfig = {
+      name: "petstore",
+      type: "openapi",
+      spec: join(fixturesDir, "petstore.json"),
+    };
+
+    const schema = await openapiAdapter.loadSchema(config);
+    const result = openapiAdapter.generateOperations(schema, config, {
+      clientImportPath: "./client",
+      typesImportPath: "./types",
+      includeSourceInQueryKey: false,
+    });
+
+    // deletePet operation
+    expect(result.content).toContain("deletePetMutationOptions");
+    expect(result.content).toContain("DELETE");
   });
 });
