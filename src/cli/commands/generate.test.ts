@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { configSchema } from "../../core/config";
+import { configSchema, legacyConfigSchema } from "../../core/config";
 import { generateCommand } from "./generate";
 
 // We test the config loading and validation logic
 // rather than the citty command to avoid mocking process.exit()
 
 describe("generate command logic", () => {
-  describe("config validation", () => {
+  describe("config validation (legacy format)", () => {
     it("validates a valid configuration", () => {
       const config = {
         schema: {
@@ -19,7 +19,7 @@ describe("generate command logic", () => {
         },
       };
 
-      const result = configSchema.safeParse(config);
+      const result = legacyConfigSchema.safeParse(config);
       expect(result.success).toBe(true);
     });
 
@@ -32,7 +32,7 @@ describe("generate command logic", () => {
         },
       };
 
-      const result = configSchema.safeParse(config);
+      const result = legacyConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
     });
 
@@ -57,7 +57,7 @@ describe("generate command logic", () => {
     });
   });
 
-  describe("error formatting", () => {
+  describe("error formatting (legacy format)", () => {
     it("provides descriptive error for missing schema url", () => {
       const config = {
         schema: {},
@@ -67,7 +67,7 @@ describe("generate command logic", () => {
         },
       };
 
-      const result = configSchema.safeParse(config);
+      const result = legacyConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
       if (!result.success) {
         const errors = result.error.errors;
@@ -87,7 +87,7 @@ describe("generate command logic", () => {
         },
       };
 
-      const result = configSchema.safeParse(config);
+      const result = legacyConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
       if (!result.success) {
         const errors = result.error.errors;
@@ -105,7 +105,7 @@ describe("generate command logic", () => {
         },
       };
 
-      const result = configSchema.safeParse(config);
+      const result = legacyConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
       if (!result.success) {
         const errors = result.error.errors;
@@ -122,7 +122,7 @@ describe("generate command logic", () => {
         output: {},
       };
 
-      const result = configSchema.safeParse(config);
+      const result = legacyConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
       if (!result.success) {
         const errors = result.error.errors;
@@ -147,7 +147,7 @@ describe("generate command logic", () => {
         },
       };
 
-      const result = configSchema.safeParse(config);
+      const result = legacyConfigSchema.safeParse(config);
       expect(result.success).toBe(true);
     });
 
@@ -166,7 +166,7 @@ describe("generate command logic", () => {
         },
       };
 
-      const result = configSchema.safeParse(config);
+      const result = legacyConfigSchema.safeParse(config);
       expect(result.success).toBe(true);
     });
 
@@ -181,7 +181,7 @@ describe("generate command logic", () => {
         },
       };
 
-      const result = configSchema.safeParse(config);
+      const result = legacyConfigSchema.safeParse(config);
       expect(result.success).toBe(true);
     });
 
@@ -199,12 +199,34 @@ describe("generate command logic", () => {
         },
       };
 
-      const result = configSchema.safeParse(config);
+      const result = legacyConfigSchema.safeParse(config);
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.output.client).toBe("graphql-client.ts");
         expect(result.data.output.types).toBe("graphql-types.ts");
         expect(result.data.output.operations).toBe("graphql-operations.ts");
+      }
+    });
+  });
+
+  describe("config transformation", () => {
+    it("transforms legacy config to multi-source format", () => {
+      const legacyConfig = {
+        schema: {
+          url: "http://localhost:4000/graphql",
+        },
+        documents: "./src/graphql/**/*.graphql",
+        output: {
+          dir: "./src/generated",
+        },
+      };
+
+      const result = configSchema.safeParse(legacyConfig);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.sources).toHaveLength(1);
+        expect(result.data.sources[0]?.type).toBe("graphql");
+        expect(result.data.sources[0]?.name).toBe("graphql");
       }
     });
   });
@@ -220,7 +242,7 @@ describe("generate command definition", () => {
   it("should have correct metadata", () => {
     expect(meta.name).toBe("generate");
     expect(meta.description).toBe(
-      "Generate TanStack Query artifacts from GraphQL schema",
+      "Generate TanStack Query artifacts from GraphQL/OpenAPI sources",
     );
   });
 
