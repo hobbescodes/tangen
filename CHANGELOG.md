@@ -1,5 +1,11 @@
 # tangen
 
+## 0.5.0
+
+### Minor Changes
+
+- c32d947: Add automatic `.env` file loading for environment variables in config files. Environment variables defined in `.env` are now available when evaluating `tangen.config.ts`. Added `--env-file` flag to specify custom env files (can be used multiple times) and `--no-dotenv` flag to disable this behavior.
+
 ## 0.4.1
 
 ### Patch Changes
