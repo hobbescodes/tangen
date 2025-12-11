@@ -202,4 +202,72 @@ describe("generateOperations", () => {
 
     expect(result).toMatchSnapshot();
   });
+
+  it("only imports queryOptions when there are no mutations", async () => {
+    const documents = await loadDocuments(`${fixturesDir}/query-only.graphql`);
+    const result = generateOperations({
+      documents,
+      clientImportPath: "./client",
+      typesImportPath: "./types",
+    });
+
+    expect(result).toContain(
+      'import { queryOptions } from "@tanstack/react-query"',
+    );
+    expect(result).not.toContain("mutationOptions");
+  });
+
+  it("only imports mutationOptions when there are no queries", async () => {
+    const documents = await loadDocuments(
+      `${fixturesDir}/mutation-only.graphql`,
+    );
+    const result = generateOperations({
+      documents,
+      clientImportPath: "./client",
+      typesImportPath: "./types",
+    });
+
+    expect(result).toContain(
+      'import { mutationOptions } from "@tanstack/react-query"',
+    );
+    expect(result).not.toContain("queryOptions");
+  });
+
+  it("does not import variables types for operations without variables", async () => {
+    const documents = await loadDocuments(`${fixturesDir}/query-only.graphql`);
+    const result = generateOperations({
+      documents,
+      clientImportPath: "./client",
+      typesImportPath: "./types",
+    });
+
+    // GetAllUsers has no variables, so no variables type should be imported
+    expect(result).not.toContain("GetAllUsersQueryVariables");
+    // But GetUserById does have variables
+    expect(result).toContain("GetUserByIdQueryVariables");
+  });
+
+  it("matches snapshot for query-only operations", async () => {
+    const documents = await loadDocuments(`${fixturesDir}/query-only.graphql`);
+    const result = generateOperations({
+      documents,
+      clientImportPath: "./client",
+      typesImportPath: "./types",
+    });
+
+    expect(result).toMatchSnapshot();
+  });
+
+  it("matches snapshot for mutation-only operations", async () => {
+    const documents = await loadDocuments(
+      `${fixturesDir}/mutation-only.graphql`,
+    );
+    const result = generateOperations({
+      documents,
+      clientImportPath: "./client",
+      typesImportPath: "./types",
+    });
+
+    expect(result).toMatchSnapshot();
+  });
 });

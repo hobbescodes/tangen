@@ -1,0 +1,15 @@
+# Query with required variables
+query GetUserById($id: ID!) {
+  user(id: $id) {
+    id
+    name
+  }
+}
+
+# Query without variables
+query GetAllUsers {
+  users {
+    id
+    name
+  }
+}

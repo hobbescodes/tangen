@@ -1,0 +1,12 @@
+# Mutation with required variables
+mutation CreateNewUser($input: CreateUserInput!) {
+  createUser(input: $input) {
+    id
+    name
+  }
+}
+
+# Mutation without variables
+mutation ResetAllUsers {
+  resetAllUsers
+}

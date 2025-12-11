@@ -37,9 +37,18 @@ export function generateOperations(
   lines.push("");
 
   // Imports
-  lines.push(
-    'import { mutationOptions, queryOptions } from "@tanstack/react-query"',
-  );
+  const hasQueries = operations.some((op) => op.operation === "query");
+  const hasMutations = operations.some((op) => op.operation === "mutation");
+
+  const tanstackImports: string[] = [];
+  if (hasMutations) tanstackImports.push("mutationOptions");
+  if (hasQueries) tanstackImports.push("queryOptions");
+
+  if (tanstackImports.length > 0) {
+    lines.push(
+      `import { ${tanstackImports.join(", ")} } from "@tanstack/react-query"`,
+    );
+  }
   lines.push(`import { getClient } from "${clientImportPath}"`);
   lines.push("");
 
@@ -86,12 +95,19 @@ function generateTypeImports(operations: ParsedOperation[]): string {
   const imports: string[] = [];
 
   for (const op of operations) {
+    const hasVariables =
+      op.node.variableDefinitions && op.node.variableDefinitions.length > 0;
+
     if (op.operation === "query") {
       imports.push(`\t${toQueryTypeName(op.name)},`);
-      imports.push(`\t${toQueryVariablesTypeName(op.name)},`);
-    } else {
+      if (hasVariables) {
+        imports.push(`\t${toQueryVariablesTypeName(op.name)},`);
+      }
+    } else if (op.operation === "mutation") {
       imports.push(`\t${toMutationTypeName(op.name)},`);
-      imports.push(`\t${toMutationVariablesTypeName(op.name)},`);
+      if (hasVariables) {
+        imports.push(`\t${toMutationVariablesTypeName(op.name)},`);
+      }
     }
   }
 
