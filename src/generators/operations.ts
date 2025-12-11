@@ -37,7 +37,9 @@ export function generateOperations(
   lines.push("");
 
   // Imports
-  lines.push('import { queryOptions } from "@tanstack/react-query"');
+  lines.push(
+    'import { mutationOptions, queryOptions } from "@tanstack/react-query"',
+  );
   lines.push(`import { getClient } from "${clientImportPath}"`);
   lines.push("");
 
@@ -184,15 +186,17 @@ function generateMutationOptions(operation: ParsedOperation): string {
     operation.node.variableDefinitions.length > 0;
 
   if (!hasVariables) {
-    return `export const ${fnName} = () => ({
-	mutationKey: ["${operation.name}"],
-	mutationFn: async () => (await getClient()).request<${mutationType}>(${docName}),
-})`;
+    return `export const ${fnName} = () =>
+	mutationOptions({
+		mutationKey: ["${operation.name}"],
+		mutationFn: async () => (await getClient()).request<${mutationType}>(${docName}),
+	})`;
   }
 
-  return `export const ${fnName} = () => ({
-	mutationKey: ["${operation.name}"],
-	mutationFn: async (variables: ${variablesType}) =>
-		(await getClient()).request<${mutationType}>(${docName}, variables),
-})`;
+  return `export const ${fnName} = () =>
+	mutationOptions({
+		mutationKey: ["${operation.name}"],
+		mutationFn: async (variables: ${variablesType}) =>
+			(await getClient()).request<${mutationType}>(${docName}, variables),
+	})`;
 }

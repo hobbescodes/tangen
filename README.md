@@ -259,7 +259,7 @@ export type GetUserQuery = { user: UserFieldsFragment | null };
 
 ### `operations.ts`
 
-Ready-to-use `queryOptions` and mutation options:
+Ready-to-use `queryOptions` and `mutationOptions`:
 
 ```typescript
 export const getUserQueryOptions = (variables: GetUserQueryVariables) =>
@@ -269,14 +269,15 @@ export const getUserQueryOptions = (variables: GetUserQueryVariables) =>
       (await getClient()).request<GetUserQuery>(GetUserDocument, variables),
   });
 
-export const createUserMutationOptions = () => ({
-  mutationKey: ["CreateUser"],
-  mutationFn: async (variables: CreateUserMutationVariables) =>
-    (await getClient()).request<CreateUserMutation>(
-      CreateUserDocument,
-      variables
-    ),
-});
+export const createUserMutationOptions = () =>
+  mutationOptions({
+    mutationKey: ["CreateUser"],
+    mutationFn: async (variables: CreateUserMutationVariables) =>
+      (await getClient()).request<CreateUserMutation>(
+        CreateUserDocument,
+        variables
+      ),
+  });
 ```
 
 ## CLI Reference
