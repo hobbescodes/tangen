@@ -1,4 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { access, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 
 import consola from "consola";
@@ -14,6 +15,18 @@ import type { TangenConfig } from "./config";
 export interface GenerateOptions {
   config: TangenConfig;
   force?: boolean;
+}
+
+/**
+ * Check if a file exists (Node.js compatible)
+ */
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path, constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -44,7 +57,7 @@ export async function generate(options: GenerateOptions): Promise<void> {
 
   // Step 4: Generate client (only if it doesn't exist or force is true)
   const clientPath = join(outputDir, output.client);
-  const clientExists = await Bun.file(clientPath).exists();
+  const clientExists = await fileExists(clientPath);
 
   if (clientExists && !force) {
     consola.info(

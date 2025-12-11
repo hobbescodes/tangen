@@ -6,8 +6,9 @@
 - **Lint**: `bun run lint` (fix: `bun run lint:fix`)
 - **Format**: `bun run format`
 - **Typecheck**: `bun run typecheck`
-- **Test all**: `bun test`
-- **Test single**: `bun test <file>` (e.g., `bun test test/generator.test.ts`)
+- **Test all**: `bun run test`
+- **Test single**: `bun run test <file>` (e.g., `bun run test src/core/generator.test.ts`)
+- **Update snapshots**: `bun run test -u`
 
 ## Code Style (Biome)
 - Tabs for indentation, double quotes, no semicolons (except when required)
