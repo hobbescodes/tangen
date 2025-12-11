@@ -1,5 +1,19 @@
+import { dirname } from "node:path";
+
 import { loadConfig } from "c12";
 import { z } from "zod";
+
+import type { DotenvOptions } from "c12";
+
+/**
+ * Options for loading the tangen config
+ */
+export interface LoadConfigOptions {
+  /** Path to the config file */
+  configPath?: string;
+  /** Dotenv configuration - true to load .env, false to disable, or DotenvOptions object */
+  dotenv?: boolean | DotenvOptions;
+}
 
 /**
  * Configuration schema for tangen
@@ -40,13 +54,18 @@ export function defineConfig(config: TangenConfig): TangenConfig {
  * Load and validate the tangen config file
  */
 export async function loadTangenConfig(
-  configPath?: string,
+  options: LoadConfigOptions = {},
 ): Promise<TangenConfig> {
+  // If a config path is provided, use its directory as cwd for dotenv resolution
+  const cwd = options.configPath ? dirname(options.configPath) : undefined;
+
   const { config, configFile } = await loadConfig<TangenConfig>({
     name: "tangen",
-    configFile: configPath,
+    cwd,
+    configFile: options.configPath,
     rcFile: false,
     globalRc: false,
+    dotenv: options.dotenv ?? true,
   });
 
   if (!config || Object.keys(config).length === 0) {

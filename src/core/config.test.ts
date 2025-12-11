@@ -219,7 +219,9 @@ describe("loadTangenConfig", () => {
 
   it("throws when no config file exists", async () => {
     await expect(
-      loadTangenConfig(join(testDir, "nonexistent.config.ts")),
+      loadTangenConfig({
+        configPath: join(testDir, "nonexistent.config.ts"),
+      }),
     ).rejects.toThrow("No configuration found");
   });
 
@@ -233,7 +235,7 @@ describe("loadTangenConfig", () => {
     `;
     await writeFile(configPath, invalidConfig, "utf-8");
 
-    await expect(loadTangenConfig(configPath)).rejects.toThrow(
+    await expect(loadTangenConfig({ configPath })).rejects.toThrow(
       "Invalid configuration",
     );
   });
@@ -252,7 +254,7 @@ describe("loadTangenConfig", () => {
     `;
     await writeFile(configPath, validConfig, "utf-8");
 
-    const config = await loadTangenConfig(configPath);
+    const config = await loadTangenConfig({ configPath });
 
     expect(config.schema.url).toBe("http://localhost:4000/graphql");
     expect(config.documents).toBe("./src/graphql/**/*.graphql");
@@ -273,10 +275,137 @@ describe("loadTangenConfig", () => {
     `;
     await writeFile(configPath, configWithDefaults, "utf-8");
 
-    const config = await loadTangenConfig(configPath);
+    const config = await loadTangenConfig({ configPath });
 
     expect(config.output.client).toBe("client.ts");
     expect(config.output.types).toBe("types.ts");
     expect(config.output.operations).toBe("operations.ts");
+  });
+});
+
+describe("loadTangenConfig with dotenv", () => {
+  const testDir = join(__dirname, ".test-config-dotenv");
+  const configPath = join(testDir, "tangen.config.ts");
+
+  beforeEach(async () => {
+    await mkdir(testDir, { recursive: true });
+    // Store original env values
+    delete process.env.TEST_API_KEY;
+    delete process.env.OTHER_VAR;
+  });
+
+  afterEach(async () => {
+    await rm(testDir, { recursive: true, force: true });
+    // Clean up env vars
+    delete process.env.TEST_API_KEY;
+    delete process.env.OTHER_VAR;
+  });
+
+  it("loads .env file by default and makes vars available to config", async () => {
+    // Create .env file
+    await writeFile(join(testDir, ".env"), "TEST_API_KEY=secret123", "utf-8");
+
+    // Create config that uses env var
+    const configContent = `
+			export default {
+				schema: {
+					url: "http://localhost:4000/graphql",
+					headers: { "x-api-key": process.env.TEST_API_KEY },
+				},
+				documents: "./src/graphql/**/*.graphql",
+				output: { dir: "./src/generated" },
+			}
+		`;
+    await writeFile(configPath, configContent, "utf-8");
+
+    const config = await loadTangenConfig({ configPath });
+
+    expect(config.schema.headers?.["x-api-key"]).toBe("secret123");
+  });
+
+  it("does not load .env when dotenv is false", async () => {
+    await writeFile(join(testDir, ".env"), "TEST_API_KEY=secret123", "utf-8");
+
+    const configContent = `
+			export default {
+				schema: {
+					url: "http://localhost:4000/graphql",
+					headers: { "x-api-key": process.env.TEST_API_KEY || "fallback" },
+				},
+				documents: "./src/graphql/**/*.graphql",
+				output: { dir: "./src/generated" },
+			}
+		`;
+    await writeFile(configPath, configContent, "utf-8");
+
+    const config = await loadTangenConfig({
+      configPath,
+      dotenv: false,
+    });
+
+    expect(config.schema.headers?.["x-api-key"]).toBe("fallback");
+  });
+
+  it("loads custom env file when specified", async () => {
+    await writeFile(
+      join(testDir, ".env.local"),
+      "TEST_API_KEY=local123",
+      "utf-8",
+    );
+
+    const configContent = `
+			export default {
+				schema: {
+					url: "http://localhost:4000/graphql",
+					headers: { "x-api-key": process.env.TEST_API_KEY },
+				},
+				documents: "./src/graphql/**/*.graphql",
+				output: { dir: "./src/generated" },
+			}
+		`;
+    await writeFile(configPath, configContent, "utf-8");
+
+    const config = await loadTangenConfig({
+      configPath,
+      dotenv: { fileName: ".env.local" },
+    });
+
+    expect(config.schema.headers?.["x-api-key"]).toBe("local123");
+  });
+
+  it("merges multiple env files with later files taking priority", async () => {
+    await writeFile(
+      join(testDir, ".env"),
+      "TEST_API_KEY=base\nOTHER_VAR=other",
+      "utf-8",
+    );
+    await writeFile(
+      join(testDir, ".env.local"),
+      "TEST_API_KEY=override",
+      "utf-8",
+    );
+
+    const configContent = `
+			export default {
+				schema: {
+					url: "http://localhost:4000/graphql",
+					headers: {
+						"x-api-key": process.env.TEST_API_KEY,
+						"x-other": process.env.OTHER_VAR,
+					},
+				},
+				documents: "./src/graphql/**/*.graphql",
+				output: { dir: "./src/generated" },
+			}
+		`;
+    await writeFile(configPath, configContent, "utf-8");
+
+    const config = await loadTangenConfig({
+      configPath,
+      dotenv: { fileName: [".env", ".env.local"] },
+    });
+
+    expect(config.schema.headers?.["x-api-key"]).toBe("override");
+    expect(config.schema.headers?.["x-other"]).toBe("other");
   });
 });
