@@ -26,3 +26,14 @@
 
 ## Bun-First
 - Use Bun runtime, not Node.js. See CLAUDE.md for Bun-specific APIs.
+
+## Changesets
+- Add a changeset for any user-facing CLI changes (new features, breaking changes, bug fixes)
+- Run `bunx changeset` or create a markdown file in `.changeset/` with the format:
+  ```md
+  ---
+  "tangen": patch | minor | major
+  ---
+  Description of the change.
+  ```
+- Use `patch` for bug fixes, `minor` for new features, `major` for breaking changes

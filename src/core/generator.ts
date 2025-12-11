@@ -11,16 +11,17 @@ import { introspectSchema } from "./introspection";
 
 import type { TangenConfig } from "./config";
 
+export interface GenerateOptions {
+  config: TangenConfig;
+  force?: boolean;
+}
+
 /**
  * Main generation orchestrator
  */
-export async function generate(config: TangenConfig): Promise<void> {
-  const {
-    schema: schemaConfig,
-    client: clientConfig,
-    output,
-    scalars,
-  } = config;
+export async function generate(options: GenerateOptions): Promise<void> {
+  const { config, force = false } = options;
+  const { schema: schemaConfig, output, scalars } = config;
 
   // Step 1: Introspect schema
   consola.info(`Introspecting schema from ${schemaConfig.url}...`);
@@ -41,15 +42,20 @@ export async function generate(config: TangenConfig): Promise<void> {
   const outputDir = join(process.cwd(), output.dir);
   await mkdir(outputDir, { recursive: true });
 
-  // Step 4: Generate client
-  consola.info("Generating client...");
-  const clientCode = generateClient({
-    url: schemaConfig.url,
-    headers: clientConfig?.headers,
-  });
+  // Step 4: Generate client (only if it doesn't exist or force is true)
   const clientPath = join(outputDir, output.client);
-  await writeFile(clientPath, clientCode, "utf-8");
-  consola.success(`Generated ${output.client}`);
+  const clientExists = await Bun.file(clientPath).exists();
+
+  if (clientExists && !force) {
+    consola.info(
+      `Skipping ${output.client} (already exists, use --force to regenerate)`,
+    );
+  } else {
+    consola.info("Generating client...");
+    const clientCode = generateClient({ url: schemaConfig.url });
+    await writeFile(clientPath, clientCode, "utf-8");
+    consola.success(`Generated ${output.client}`);
+  }
 
   // Step 5: Generate types
   consola.info("Generating types...");

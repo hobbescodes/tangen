@@ -15,6 +15,12 @@ export const generateCommand = defineCommand({
       alias: "c",
       description: "Path to config file",
     },
+    force: {
+      type: "boolean",
+      alias: "f",
+      description: "Force regeneration of all files including client",
+      default: false,
+    },
   },
   async run({ args }) {
     try {
@@ -22,7 +28,7 @@ export const generateCommand = defineCommand({
       const config = await loadTangenConfig(args.config);
 
       consola.start("Generating TanStack Query artifacts...");
-      await generate(config);
+      await generate({ config, force: args.force });
 
       consola.success("Generation complete!");
     } catch (error) {

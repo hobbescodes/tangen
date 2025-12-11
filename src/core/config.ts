@@ -11,20 +11,10 @@ export const configSchema = z.object({
     /** Headers to send with introspection request */
     headers: z.record(z.string()).optional(),
   }),
-
-  client: z
-    .object({
-      /** Headers to include in the generated client */
-      headers: z.record(z.string()).optional(),
-    })
-    .optional(),
-
   /** Custom scalar type mappings */
   scalars: z.record(z.string()).optional(),
-
   /** Glob pattern(s) for GraphQL document files */
   documents: z.union([z.string(), z.array(z.string())]),
-
   output: z.object({
     /** Output directory for generated files */
     dir: z.string(),
@@ -86,28 +76,10 @@ export function generateDefaultConfig(): string {
 export default defineConfig({
 	schema: {
 		url: "http://localhost:4000/graphql",
-		// Headers for introspection (e.g., API keys)
-		// headers: {
-		//   "x-api-key": process.env.API_KEY,
-		// },
+		// headers: { "x-api-key": process.env.API_KEY },
 	},
-
-	client: {
-		// Headers to include in the generated client
-		headers: {
-			"Content-Type": "application/json",
-		},
-	},
-
-	// Custom scalar type mappings
-	// scalars: {
-	//   DateTime: "Date",
-	//   JSON: "Record<string, unknown>",
-	// },
-
-	// Glob pattern for your GraphQL operation files
+	// scalars: { DateTime: "Date", JSON: "Record<string, unknown>" },
 	documents: "./src/graphql/**/*.graphql",
-
 	output: {
 		dir: "./src/generated",
 		client: "client.ts",

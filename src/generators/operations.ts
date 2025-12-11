@@ -38,7 +38,7 @@ export function generateOperations(
 
   // Imports
   lines.push('import { queryOptions } from "@tanstack/react-query"');
-  lines.push(`import { client } from "${clientImportPath}"`);
+  lines.push(`import { getClient } from "${clientImportPath}"`);
   lines.push("");
 
   // Type imports
@@ -155,7 +155,7 @@ function generateQueryOptions(operation: ParsedOperation): string {
     return `export const ${fnName} = () =>
 	queryOptions({
 		queryKey: ["${operation.name}"],
-		queryFn: () => client.request<${queryType}>(${docName}),
+		queryFn: async () => (await getClient()).request<${queryType}>(${docName}),
 	})`;
   }
 
@@ -166,7 +166,7 @@ function generateQueryOptions(operation: ParsedOperation): string {
   return `export const ${fnName} = (${variableParam}) =>
 	queryOptions({
 		queryKey: ["${operation.name}", variables],
-		queryFn: () => client.request<${queryType}>(${docName}, variables ?? undefined),
+		queryFn: async () => (await getClient()).request<${queryType}>(${docName}, variables ?? undefined),
 	})`;
 }
 
@@ -186,13 +186,13 @@ function generateMutationOptions(operation: ParsedOperation): string {
   if (!hasVariables) {
     return `export const ${fnName} = () => ({
 	mutationKey: ["${operation.name}"],
-	mutationFn: () => client.request<${mutationType}>(${docName}),
+	mutationFn: async () => (await getClient()).request<${mutationType}>(${docName}),
 })`;
   }
 
   return `export const ${fnName} = () => ({
 	mutationKey: ["${operation.name}"],
-	mutationFn: (variables: ${variablesType}) =>
-		client.request<${mutationType}>(${docName}, variables),
+	mutationFn: async (variables: ${variablesType}) =>
+		(await getClient()).request<${mutationType}>(${docName}, variables),
 })`;
 }
