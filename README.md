@@ -1,18 +1,27 @@
 # tangen
 
-> Generate TanStack Query artifacts from GraphQL schemas
+> Code generation for the TanStack ecosystem
 
 [![npm version](https://img.shields.io/npm/v/tangen.svg)](https://www.npmjs.com/package/tangen)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
 
-tangen is a code generation tool that takes your GraphQL schema (via introspection) and your `.graphql` operation files, and generates:
+tangen is a comprehensive code generation tool for the TanStack ecosystem. It takes your schema and generates fully typed, ready-to-use artifacts for TanStack libraries.
 
-- **TypeScript types** for your schema (enums, input types, fragments, operations)
-- **A configured GraphQL client** using `graphql-request`
-- **`queryOptions`** for TanStack Query queries
-- **`mutationOptions`** for TanStack Query mutations
+Currently supporting **TanStack Query** with more integrations on the way.
+
+## Features
+
+- **TanStack Query** - Generate type-safe `queryOptions` and `mutationOptions` from your GraphQL operations
+- **TanStack Form** - Generate type-safe form hooks and validation from your schema's input types _(coming soon)_
+- **TanStack DB** - Generate collection definitions from your schema _(coming soon)_
+- **TanStack Pacer** - Generate rate-limited operation wrappers _(coming soon)_
+
+## Supported Data Sources
+
+- **GraphQL** - Via introspection
+- More coming soon
 
 ## Installation
 
@@ -317,6 +326,13 @@ const authenticatedClient = getClient({
   Authorization: `Bearer ${token}`,
 })
 ```
+
+## Roadmap
+
+- TanStack Form integration
+- TanStack DB integration
+- TanStack Pacer integration
+- Additional data source support
 
 ## Contributing
 

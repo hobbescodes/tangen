@@ -1,7 +1,7 @@
 {
 	"name": "tangen",
 	"version": "0.2.0",
-	"description": "Generate TanStack Query artifacts from GraphQL schemas",
+	"description": "Code generation for the TanStack ecosystem",
 	"type": "module",
 	"main": "./dist/index.js",
 	"module": "./dist/index.js",
@@ -15,9 +15,7 @@
 			"types": "./dist/index.d.ts"
 		}
 	},
-	"files": [
-		"dist"
-	],
+	"files": ["dist"],
 	"scripts": {
 		"build": "tsup",
 		"dev": "tsup --watch",
