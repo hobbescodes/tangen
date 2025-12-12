@@ -1,5 +1,5 @@
 ---
-"tangen": major
+"tangen": minor
 ---
 
 Restructure config to support multiple TanStack libraries.
@@ -45,10 +45,10 @@ Restructure config to support multiple TanStack libraries.
 
    ```typescript
    // Before
-   queryKey: ["GetUser", variables]
+   queryKey: ["GetUser", variables];
 
    // After
-   queryKey: ["graphql", "GetUser", variables]
+   queryKey: ["graphql", "GetUser", variables];
    ```
 
 This restructuring prepares tangen to support generating artifacts for other TanStack libraries (router, form, etc.) in the future.
