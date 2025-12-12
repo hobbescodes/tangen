@@ -8,20 +8,43 @@ import consola from "consola";
 import { getAdapter } from "@/adapters";
 import { normalizeGenerates } from "./config";
 
-const require = createRequire(import.meta.url);
+/**
+ * Create a require function that resolves modules from the user's project directory
+ */
+function createProjectRequire() {
+  return createRequire(join(process.cwd(), "package.json"));
+}
 
 /**
  * Validate that TanStack Start dependencies are installed when serverFunctions is enabled
+ * @internal Exported for testing
+ * @param sourceName - Name of the source being validated
+ * @param serverFunctions - Whether serverFunctions is enabled
+ * @param resolveModule - Optional function to resolve modules (for testing)
  */
-function validateServerFunctionsRequirements(
+export function validateServerFunctionsRequirements(
   sourceName: string,
   serverFunctions: boolean,
+  resolveModule?: (moduleName: string) => string,
 ): void {
   if (!serverFunctions) return;
 
+  const resolve = resolveModule ?? createProjectRequire().resolve;
+
+  // Check for @tanstack/react-router
+  try {
+    resolve("@tanstack/react-router");
+  } catch {
+    throw new Error(
+      `Source "${sourceName}" has serverFunctions enabled but @tanstack/react-router is not installed.\n` +
+        `TanStack Start requires both @tanstack/react-router and @tanstack/react-start.\n` +
+        `Install them with: bun add @tanstack/react-router @tanstack/react-start`,
+    );
+  }
+
   // Check for @tanstack/react-start
   try {
-    require.resolve("@tanstack/react-start");
+    resolve("@tanstack/react-start");
   } catch {
     throw new Error(
       `Source "${sourceName}" has serverFunctions enabled but @tanstack/react-start is not installed.\n` +
