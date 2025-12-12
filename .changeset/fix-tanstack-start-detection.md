@@ -2,4 +2,4 @@
 "tangrams": patch
 ---
 
-Fix TanStack Start detection to resolve packages from the user's project directory instead of the CLI package directory. Also adds validation for `@tanstack/react-router` in addition to `@tanstack/react-start`.
+Fix TanStack Start detection to check the user's `package.json` directly instead of using Node's module resolution. This fixes detection issues when running via `bunx` or in various monorepo setups.

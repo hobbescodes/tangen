@@ -1,6 +1,5 @@
 import { constants } from "node:fs";
-import { access, mkdir, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 
 import consola from "consola";
@@ -9,10 +8,16 @@ import { getAdapter } from "@/adapters";
 import { normalizeGenerates } from "./config";
 
 /**
- * Create a require function that resolves modules from the user's project directory
+ * Read and merge dependencies from the project's package.json
  */
-function createProjectRequire() {
-  return createRequire(join(process.cwd(), "package.json"));
+async function getProjectDependencies(): Promise<Record<string, string>> {
+  const pkgPath = join(process.cwd(), "package.json");
+  const pkgContent = await readFile(pkgPath, "utf-8");
+  const pkg = JSON.parse(pkgContent);
+  return {
+    ...pkg.dependencies,
+    ...pkg.devDependencies,
+  };
 }
 
 /**
@@ -20,21 +25,19 @@ function createProjectRequire() {
  * @internal Exported for testing
  * @param sourceName - Name of the source being validated
  * @param serverFunctions - Whether serverFunctions is enabled
- * @param resolveModule - Optional function to resolve modules (for testing)
+ * @param dependencies - Optional dependencies object (for testing)
  */
-export function validateServerFunctionsRequirements(
+export async function validateServerFunctionsRequirements(
   sourceName: string,
   serverFunctions: boolean,
-  resolveModule?: (moduleName: string) => string,
-): void {
+  dependencies?: Record<string, string>,
+): Promise<void> {
   if (!serverFunctions) return;
 
-  const resolve = resolveModule ?? createProjectRequire().resolve;
+  const deps = dependencies ?? (await getProjectDependencies());
 
   // Check for @tanstack/react-router
-  try {
-    resolve("@tanstack/react-router");
-  } catch {
+  if (!deps["@tanstack/react-router"]) {
     throw new Error(
       `Source "${sourceName}" has serverFunctions enabled but @tanstack/react-router is not installed.\n` +
         `TanStack Start requires both @tanstack/react-router and @tanstack/react-start.\n` +
@@ -43,9 +46,7 @@ export function validateServerFunctionsRequirements(
   }
 
   // Check for @tanstack/react-start
-  try {
-    resolve("@tanstack/react-start");
-  } catch {
+  if (!deps["@tanstack/react-start"]) {
     throw new Error(
       `Source "${sourceName}" has serverFunctions enabled but @tanstack/react-start is not installed.\n` +
         `TanStack Start requires both @tanstack/react-router and @tanstack/react-start.\n` +
@@ -288,7 +289,7 @@ async function generateQueryFiles(
   } = options;
 
   // Validate TanStack Start dependencies if serverFunctions is enabled
-  validateServerFunctionsRequirements(source.name, serverFunctions);
+  await validateServerFunctionsRequirements(source.name, serverFunctions);
 
   consola.info(`Generating query files for: ${source.name}`);
 
