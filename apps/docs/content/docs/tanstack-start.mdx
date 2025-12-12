@@ -212,27 +212,6 @@ function UserPage() {
 }
 ```
 
-### In Server Actions
-
-```typescript
-import { createUserFn } from "./generated/graphql/start/functions"
-
-async function handleCreateUser(formData: FormData) {
-  "use server"
-  
-  const result = await createUserFn({
-    data: {
-      input: {
-        name: formData.get("name") as string,
-        email: formData.get("email") as string,
-      },
-    },
-  })
-  
-  return result
-}
-```
-
 ## Configuration Reference
 
 ### Start Generator Options
