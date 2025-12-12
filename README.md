@@ -13,7 +13,7 @@
 
 tangrams is a comprehensive code generation tool for the TanStack ecosystem. It takes your schema and generates fully typed, ready-to-use artifacts for TanStack libraries.
 
-Currently supporting **TanStack Query** with more integrations on the way.
+Currently supporting **TanStack Query** and **TanStack Form** with more integrations on the way.
 
 ## Features
 
@@ -298,9 +298,9 @@ Each source must specify what to generate via the `generates` property. It accep
 **Array form (uses default filenames):**
 
 ```typescript
-generates: ["query"]           // Generate only TanStack Query code
-generates: ["form"]            // Generate only TanStack Form code
-generates: ["query", "form"]   // Generate both
+generates: ["query"]; // Generate only TanStack Query code
+generates: ["form"]; // Generate only TanStack Form code
+generates: ["query", "form"]; // Generate both
 ```
 
 **Object form (customize filenames):**
@@ -331,14 +331,14 @@ generates: {
 
 ### GraphQL Source Options
 
-| Option     | Type                     | Required | Description                                |
-| ---------- | ------------------------ | -------- | ------------------------------------------ |
-| `name`     | `string`                 | Yes      | Unique name for this source                |
-| `type`     | `"graphql"`              | Yes      | Source type                                |
-| `schema`   | `object`                 | Yes      | Schema configuration (see below)           |
-| `documents` | `string \| string[]`    | Yes      | Glob pattern(s) for `.graphql` operation files |
-| `scalars`  | `Record<string, string>` | No       | Custom scalar type mappings                |
-| `generates` | `array \| object`       | Yes      | What to generate (see above)               |
+| Option      | Type                     | Required | Description                                    |
+| ----------- | ------------------------ | -------- | ---------------------------------------------- |
+| `name`      | `string`                 | Yes      | Unique name for this source                    |
+| `type`      | `"graphql"`              | Yes      | Source type                                    |
+| `schema`    | `object`                 | Yes      | Schema configuration (see below)               |
+| `documents` | `string \| string[]`     | Yes      | Glob pattern(s) for `.graphql` operation files |
+| `scalars`   | `Record<string, string>` | No       | Custom scalar type mappings                    |
+| `generates` | `array \| object`        | Yes      | What to generate (see above)                   |
 
 #### Schema Configuration (choose one)
 
@@ -351,26 +351,26 @@ generates: {
 
 **File-based (local SDL files):**
 
-| Option        | Type                  | Required | Description                                    |
-| ------------- | --------------------- | -------- | ---------------------------------------------- |
-| `schema.file` | `string \| string[]`  | Yes      | Path or glob pattern(s) for `.graphql` schema files |
+| Option        | Type                 | Required | Description                                         |
+| ------------- | -------------------- | -------- | --------------------------------------------------- |
+| `schema.file` | `string \| string[]` | Yes      | Path or glob pattern(s) for `.graphql` schema files |
 
 ### OpenAPI Source Options
 
-| Option    | Type                     | Required | Description                                |
-| --------- | ------------------------ | -------- | ------------------------------------------ |
-| `name`    | `string`                 | Yes      | Unique name for this source                |
-| `type`    | `"openapi"`              | Yes      | Source type                                |
-| `spec`    | `string`                 | Yes      | Path to OpenAPI spec (local file or URL)   |
-| `headers` | `Record<string, string>` | No       | Headers for fetching remote spec           |
-| `include` | `string[]`               | No       | Glob patterns for paths to include         |
-| `exclude` | `string[]`               | No       | Glob patterns for paths to exclude         |
-| `generates` | `array \| object`      | Yes      | What to generate (see above)               |
+| Option      | Type                     | Required | Description                              |
+| ----------- | ------------------------ | -------- | ---------------------------------------- |
+| `name`      | `string`                 | Yes      | Unique name for this source              |
+| `type`      | `"openapi"`              | Yes      | Source type                              |
+| `spec`      | `string`                 | Yes      | Path to OpenAPI spec (local file or URL) |
+| `headers`   | `Record<string, string>` | No       | Headers for fetching remote spec         |
+| `include`   | `string[]`               | No       | Glob patterns for paths to include       |
+| `exclude`   | `string[]`               | No       | Glob patterns for paths to exclude       |
+| `generates` | `array \| object`        | Yes      | What to generate (see above)             |
 
 ### Global Options
 
-| Option   | Type     | Required | Description                                                  |
-| -------- | -------- | -------- | ------------------------------------------------------------ |
+| Option   | Type     | Required | Description                                                       |
+| -------- | -------- | -------- | ----------------------------------------------------------------- |
 | `output` | `string` | No       | Output directory for generated files (default: `./src/generated`) |
 
 ### Output Directory Structure
@@ -726,7 +726,12 @@ function CreateUserForm() {
   });
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); form.handleSubmit(); }}>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        form.handleSubmit();
+      }}
+    >
       <form.Field
         name="name"
         children={(field) => (
