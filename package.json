@@ -1,13 +1,13 @@
 {
-  "name": "tangen",
-  "version": "0.11.0",
+  "name": "tangrams",
+  "version": "0.1.0",
   "description": "Code generation for the TanStack ecosystem",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "tangen": "./dist/cli.js"
+    "tangrams": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -46,11 +46,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hobbescodes/tangen.git"
+    "url": "git+https://github.com/hobbescodes/tangrams.git"
   },
-  "homepage": "https://github.com/hobbescodes/tangen#readme",
+  "homepage": "https://github.com/hobbescodes/tangrams#readme",
   "bugs": {
-    "url": "https://github.com/hobbescodes/tangen/issues"
+    "url": "https://github.com/hobbescodes/tangrams/issues"
   },
   "dependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",

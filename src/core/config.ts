@@ -6,7 +6,7 @@ import * as z from "zod";
 import type { DotenvOptions } from "c12";
 
 /**
- * Options for loading the tangen config
+ * Options for loading the tangrams config
  */
 export interface LoadConfigOptions {
   /** Path to the config file */
@@ -16,11 +16,11 @@ export interface LoadConfigOptions {
 }
 
 /**
- * Result of loading the tangen config
+ * Result of loading the tangrams config
  */
 export interface LoadConfigResult {
   /** The validated configuration */
-  config: TangenConfig;
+  config: TangramsConfig;
   /** The resolved path to the config file */
   configPath: string;
 }
@@ -235,9 +235,9 @@ export type SourceConfig = z.infer<typeof sourceSchema>;
 // =============================================================================
 
 /**
- * Main tangen configuration schema (source-centric)
+ * Main tangrams configuration schema (source-centric)
  */
-export const tangenConfigSchema = z.object({
+export const tangramsConfigSchema = z.object({
   /** Output directory for all generated files (default: ./src/generated) */
   output: z.string().default("./src/generated"),
   /** Array of data sources to generate from */
@@ -257,17 +257,17 @@ export const tangenConfigSchema = z.object({
 /**
  * The normalized configuration type used internally (after parsing)
  */
-export type TangenConfig = z.output<typeof tangenConfigSchema>;
+export type TangramsConfig = z.output<typeof tangramsConfigSchema>;
 
 /**
  * Input configuration type (before defaults applied)
  */
-export type TangenConfigInput = z.input<typeof tangenConfigSchema>;
+export type TangramsConfigInput = z.input<typeof tangramsConfigSchema>;
 
 /**
  * Config schema for validation
  */
-export const configSchema = tangenConfigSchema;
+export const configSchema = tangramsConfigSchema;
 
 // =============================================================================
 // Helper Functions
@@ -276,21 +276,21 @@ export const configSchema = tangenConfigSchema;
 /**
  * Helper for defining a typed config
  */
-export function defineConfig(config: TangenConfigInput): TangenConfigInput {
+export function defineConfig(config: TangramsConfigInput): TangramsConfigInput {
   return config;
 }
 
 /**
- * Load and validate the tangen config file
+ * Load and validate the tangrams config file
  */
-export async function loadTangenConfig(
+export async function loadTangramsConfig(
   options: LoadConfigOptions = {},
 ): Promise<LoadConfigResult> {
   // If a config path is provided, use its directory as cwd for dotenv resolution
   const cwd = options.configPath ? dirname(options.configPath) : undefined;
 
-  const { config, configFile } = await loadConfig<TangenConfigInput>({
-    name: "tangen",
+  const { config, configFile } = await loadConfig<TangramsConfigInput>({
+    name: "tangrams",
     cwd,
     configFile: options.configPath,
     rcFile: false,
@@ -300,7 +300,7 @@ export async function loadTangenConfig(
 
   if (!config || Object.keys(config).length === 0) {
     throw new Error(
-      `No configuration found. Run 'tangen init' to create a config file, or specify a config file with --config.`,
+      `No configuration found. Run 'tangrams init' to create a config file, or specify a config file with --config.`,
     );
   }
 
@@ -327,7 +327,7 @@ export async function loadTangenConfig(
  * Generate a config file content
  */
 export function generateDefaultConfig(): string {
-  return `import { defineConfig } from "tangen"
+  return `import { defineConfig } from "tangrams"
 
 export default defineConfig({
 	// output: "./src/generated", // default output directory
@@ -461,7 +461,7 @@ export function sourceGeneratesForm(source: SourceConfig): boolean {
 /**
  * Check if the config has multiple sources
  */
-export function hasMultipleSources(config: TangenConfig): boolean {
+export function hasMultipleSources(config: TangramsConfig): boolean {
   return config.sources.length > 1;
 }
 
@@ -469,7 +469,7 @@ export function hasMultipleSources(config: TangenConfig): boolean {
  * Get a source by name from the config
  */
 export function getSourceByName(
-  config: TangenConfig,
+  config: TangramsConfig,
   name: string,
 ): SourceConfig | undefined {
   return config.sources.find((s) => s.name === name);
@@ -479,7 +479,7 @@ export function getSourceByName(
  * Get all sources of a specific type from the config
  */
 export function getSourcesByType<T extends SourceConfig["type"]>(
-  config: TangenConfig,
+  config: TangramsConfig,
   type: T,
 ): Extract<SourceConfig, { type: T }>[] {
   return config.sources.filter((s) => s.type === type) as Extract<
@@ -491,13 +491,13 @@ export function getSourcesByType<T extends SourceConfig["type"]>(
 /**
  * Get all sources that generate query code
  */
-export function getQuerySources(config: TangenConfig): SourceConfig[] {
+export function getQuerySources(config: TangramsConfig): SourceConfig[] {
   return config.sources.filter(sourceGeneratesQuery);
 }
 
 /**
  * Get all sources that generate form code
  */
-export function getFormSources(config: TangenConfig): SourceConfig[] {
+export function getFormSources(config: TangramsConfig): SourceConfig[] {
   return config.sources.filter(sourceGeneratesForm);
 }

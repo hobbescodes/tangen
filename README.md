@@ -1,17 +1,17 @@
-# tangen
+# tangrams
 
 > Code generation for the TanStack ecosystem
 
-[![npm version](https://img.shields.io/npm/v/tangen.svg)](https://www.npmjs.com/package/tangen)
+[![npm version](https://img.shields.io/npm/v/tangrams.svg)](https://www.npmjs.com/package/tangrams)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![pkg.pr.new](https://pkg.pr.new/badge/hobbescodes/tangen)](https://pkg.pr.new/~/hobbescodes/tangen)
+[![pkg.pr.new](https://pkg.pr.new/badge/hobbescodes/tangrams)](https://pkg.pr.new/~/hobbescodes/tangrams)
 
 > [!WARNING]
 > This project is in **alpha** and under active development. APIs may change without notice. **Do not use in production.**
 
 ## Overview
 
-tangen is a comprehensive code generation tool for the TanStack ecosystem. It takes your schema and generates fully typed, ready-to-use artifacts for TanStack libraries.
+tangrams is a comprehensive code generation tool for the TanStack ecosystem. It takes your schema and generates fully typed, ready-to-use artifacts for TanStack libraries.
 
 Currently supporting **TanStack Query** with more integrations on the way.
 
@@ -31,18 +31,18 @@ Currently supporting **TanStack Query** with more integrations on the way.
 
 ```bash
 # bun
-bun add -D tangen
+bun add -D tangrams
 
 # npm
-npm install -D tangen
+npm install -D tangrams
 
 # pnpm
-pnpm add -D tangen
+pnpm add -D tangrams
 ```
 
 ### Peer Dependencies
 
-tangen generates code that uses these packages, so you'll need them in your project:
+tangrams generates code that uses these packages, so you'll need them in your project:
 
 **For GraphQL sources:**
 
@@ -63,19 +63,19 @@ bun add @tanstack/react-query @better-fetch/fetch zod
 1. **Initialize configuration**
 
    ```bash
-   bunx tangen init
+   bunx tangrams init
    ```
 
-   This creates a `tangen.config.ts` file in your project root.
+   This creates a `tangrams.config.ts` file in your project root.
 
 2. **Configure your schema source**
 
-   Edit `tangen.config.ts` with your GraphQL schema source. You can use either a URL for introspection or local SDL files:
+   Edit `tangrams.config.ts` with your GraphQL schema source. You can use either a URL for introspection or local SDL files:
 
    **Option A: URL-based (introspection)**
 
    ```typescript
-   import { defineConfig } from "tangen";
+   import { defineConfig } from "tangrams";
 
    export default defineConfig({
      sources: [
@@ -95,7 +95,7 @@ bun add @tanstack/react-query @better-fetch/fetch zod
    **Option B: File-based (local SDL files)**
 
    ```typescript
-   import { defineConfig } from "tangen";
+   import { defineConfig } from "tangrams";
 
    export default defineConfig({
      sources: [
@@ -143,7 +143,7 @@ bun add @tanstack/react-query @better-fetch/fetch zod
 4. **Generate code**
 
    ```bash
-   bunx tangen generate
+   bunx tangrams generate
    ```
 
 5. **Use the generated code**
@@ -180,15 +180,15 @@ bun add @tanstack/react-query @better-fetch/fetch zod
 1. **Initialize configuration**
 
    ```bash
-   bunx tangen init
+   bunx tangrams init
    ```
 
 2. **Configure your OpenAPI spec**
 
-   Edit `tangen.config.ts` to use an OpenAPI source:
+   Edit `tangrams.config.ts` to use an OpenAPI source:
 
    ```typescript
-   import { defineConfig } from "tangen";
+   import { defineConfig } from "tangrams";
 
    export default defineConfig({
      sources: [
@@ -208,7 +208,7 @@ bun add @tanstack/react-query @better-fetch/fetch zod
 3. **Generate code**
 
    ```bash
-   bunx tangen generate
+   bunx tangrams generate
    ```
 
 4. **Use the generated code**
@@ -239,10 +239,10 @@ bun add @tanstack/react-query @better-fetch/fetch zod
 
 ## Configuration
 
-tangen uses a source-centric configuration where each source specifies what it generates:
+tangrams uses a source-centric configuration where each source specifies what it generates:
 
 ```typescript
-import { defineConfig } from "tangen";
+import { defineConfig } from "tangrams";
 
 export default defineConfig({
   output: "./src/generated", // optional, defaults to "./src/generated"
@@ -387,7 +387,7 @@ src/generated/
 
 ### Default Scalar Mappings (GraphQL)
 
-tangen includes sensible defaults for common scalars:
+tangrams includes sensible defaults for common scalars:
 
 | GraphQL Scalar | TypeScript Type |
 | -------------- | --------------- |
@@ -574,12 +574,12 @@ export const createUserMutationOptions = () =>
 
 ## CLI Reference
 
-### `tangen init`
+### `tangrams init`
 
-Initialize a new `tangen.config.ts` file.
+Initialize a new `tangrams.config.ts` file.
 
 ```bash
-tangen init [options]
+tangrams init [options]
 
 Options:
   -f, --force           Overwrite existing config file
@@ -588,15 +588,15 @@ Options:
 Example:
 
 ```bash
-bunx tangen init
+bunx tangrams init
 ```
 
-### `tangen generate`
+### `tangrams generate`
 
 Generate TypeScript code from your configured sources.
 
 ```bash
-tangen generate [options]
+tangrams generate [options]
 
 Options:
   -c, --config <path>     Path to config file
@@ -608,7 +608,7 @@ Options:
 
 #### Watch Mode
 
-When using `--watch`, tangen will:
+When using `--watch`, tangrams will:
 
 - Watch your config file for changes
 - Watch GraphQL documents (`.graphql` files) for changes
@@ -625,22 +625,22 @@ Example:
 
 ```bash
 # Start watching for changes
-bunx tangen generate --watch
+bunx tangrams generate --watch
 
 # Watch with a custom config file
-bunx tangen generate --watch --config ./config/tangen.config.ts
+bunx tangrams generate --watch --config ./config/tangrams.config.ts
 ```
 
 ## TanStack Form Integration
 
-tangen can generate `formOptions` for TanStack Form, complete with Zod validation schemas and default values derived from your mutations.
+tangrams can generate `formOptions` for TanStack Form, complete with Zod validation schemas and default values derived from your mutations.
 
 ### Configuration
 
 Add `"form"` to your source's `generates` array:
 
 ```typescript
-import { defineConfig } from "tangen";
+import { defineConfig } from "tangrams";
 
 export default defineConfig({
   sources: [
@@ -664,7 +664,7 @@ bun add @tanstack/react-form zod
 
 ### Generated Output
 
-When you run `tangen generate`, it creates:
+When you run `tangrams generate`, it creates:
 
 ```
 src/generated/

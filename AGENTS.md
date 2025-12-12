@@ -33,7 +33,7 @@
 - Run `bunx changeset` or create a markdown file in `.changeset/` with the format:
   ```md
   ---
-  "tangen": patch | minor
+  "tangrams": patch | minor
   ---
   Description of the change.
   ```

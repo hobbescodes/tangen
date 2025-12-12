@@ -1,5 +1,5 @@
 ---
-"tangen": minor
+"tangrams": minor
 ---
 
 Restructure config from library-centric to source-centric

@@ -16,7 +16,7 @@ import {
   getSourcesByType,
   graphqlSourceSchema,
   hasMultipleSources,
-  loadTangenConfig,
+  loadTangramsConfig,
   normalizeGenerates,
   openApiSourceSchema,
   sourceGeneratesForm,
@@ -26,7 +26,7 @@ import {
 import type {
   GraphQLSchemaUrlConfig,
   GraphQLSourceConfig,
-  TangenConfig,
+  TangramsConfig,
 } from "./config";
 
 describe("graphqlSourceSchema", () => {
@@ -537,7 +537,7 @@ describe("generateDefaultConfig", () => {
 
   it("contains defineConfig import", () => {
     const result = generateDefaultConfig();
-    expect(result).toContain('import { defineConfig } from "tangen"');
+    expect(result).toContain('import { defineConfig } from "tangrams"');
   });
 
   it("contains sources key", () => {
@@ -649,7 +649,7 @@ describe("normalizeGenerates", () => {
 });
 
 describe("utility functions", () => {
-  const multiSourceConfig: TangenConfig = {
+  const multiSourceConfig: TangramsConfig = {
     output: "./src/generated",
     sources: [
       {
@@ -674,7 +674,7 @@ describe("utility functions", () => {
     ],
   };
 
-  const singleSourceConfig: TangenConfig = {
+  const singleSourceConfig: TangramsConfig = {
     output: "./src/generated",
     sources: [
       {
@@ -780,9 +780,9 @@ describe("utility functions", () => {
   });
 });
 
-describe("loadTangenConfig", () => {
+describe("loadTangramsConfig", () => {
   const testDir = join(__dirname, ".test-config");
-  const configPath = join(testDir, "tangen.config.ts");
+  const configPath = join(testDir, "tangrams.config.ts");
 
   beforeEach(async () => {
     await mkdir(testDir, { recursive: true });
@@ -794,7 +794,7 @@ describe("loadTangenConfig", () => {
 
   it("throws when no config file exists", async () => {
     await expect(
-      loadTangenConfig({
+      loadTangramsConfig({
         configPath: join(testDir, "nonexistent.config.ts"),
       }),
     ).rejects.toThrow("No configuration found");
@@ -810,7 +810,7 @@ describe("loadTangenConfig", () => {
 		`;
     await writeFile(configPath, invalidConfig, "utf-8");
 
-    await expect(loadTangenConfig({ configPath })).rejects.toThrow(
+    await expect(loadTangramsConfig({ configPath })).rejects.toThrow(
       "Invalid configuration",
     );
   });
@@ -831,7 +831,7 @@ describe("loadTangenConfig", () => {
 		`;
     await writeFile(configPath, validConfig, "utf-8");
 
-    const result = await loadTangenConfig({ configPath });
+    const result = await loadTangramsConfig({ configPath });
 
     expect(result.config.sources).toHaveLength(1);
     const source = result.config.sources[0];
@@ -866,7 +866,7 @@ describe("loadTangenConfig", () => {
 		`;
     await writeFile(configPath, validConfig, "utf-8");
 
-    const result = await loadTangenConfig({ configPath });
+    const result = await loadTangramsConfig({ configPath });
 
     expect(result.config.sources).toHaveLength(2);
     expect(result.config.sources[0]?.name).toBe("main-api");
@@ -889,7 +889,7 @@ describe("loadTangenConfig", () => {
 		`;
     await writeFile(configPath, configWithDefaults, "utf-8");
 
-    const result = await loadTangenConfig({ configPath });
+    const result = await loadTangramsConfig({ configPath });
 
     expect(result.config.output).toBe("./src/generated");
   });
@@ -911,7 +911,7 @@ describe("loadTangenConfig", () => {
 		`;
     await writeFile(configPath, configWithCustomOutput, "utf-8");
 
-    const result = await loadTangenConfig({ configPath });
+    const result = await loadTangramsConfig({ configPath });
 
     expect(result.config.output).toBe("./custom/generated");
   });
@@ -934,7 +934,7 @@ describe("loadTangenConfig", () => {
 		`;
     await writeFile(configPath, configWithGeneratesObject, "utf-8");
 
-    const result = await loadTangenConfig({ configPath });
+    const result = await loadTangramsConfig({ configPath });
 
     const source = result.config.sources[0];
     // normalizeGenerates fills in defaults for missing files
@@ -950,9 +950,9 @@ describe("loadTangenConfig", () => {
   });
 });
 
-describe("loadTangenConfig with dotenv", () => {
+describe("loadTangramsConfig with dotenv", () => {
   const testDir = join(__dirname, ".test-config-dotenv");
-  const configPath = join(testDir, "tangen.config.ts");
+  const configPath = join(testDir, "tangrams.config.ts");
 
   beforeEach(async () => {
     await mkdir(testDir, { recursive: true });
@@ -991,7 +991,7 @@ describe("loadTangenConfig with dotenv", () => {
 		`;
     await writeFile(configPath, configContent, "utf-8");
 
-    const result = await loadTangenConfig({ configPath });
+    const result = await loadTangramsConfig({ configPath });
 
     const graphqlSource = result.config.sources[0] as GraphQLSourceConfig;
     const schemaConfig = graphqlSource.schema as GraphQLSchemaUrlConfig;
@@ -1019,7 +1019,7 @@ describe("loadTangenConfig with dotenv", () => {
 		`;
     await writeFile(configPath, configContent, "utf-8");
 
-    const result = await loadTangenConfig({
+    const result = await loadTangramsConfig({
       configPath,
       dotenv: false,
     });
@@ -1054,7 +1054,7 @@ describe("loadTangenConfig with dotenv", () => {
 		`;
     await writeFile(configPath, configContent, "utf-8");
 
-    const result = await loadTangenConfig({
+    const result = await loadTangramsConfig({
       configPath,
       dotenv: { fileName: ".env.local" },
     });
@@ -1097,7 +1097,7 @@ describe("loadTangenConfig with dotenv", () => {
 		`;
     await writeFile(configPath, configContent, "utf-8");
 
-    const result = await loadTangenConfig({
+    const result = await loadTangramsConfig({
       configPath,
       dotenv: { fileName: [".env", ".env.local"] },
     });

@@ -36,7 +36,7 @@ describe("generateClient", () => {
   it("includes auto-generated comment", () => {
     const result = generateClient({ url: "http://localhost:4000/graphql" });
 
-    expect(result).toContain("Generated once by tangen");
+    expect(result).toContain("Generated once by tangrams");
   });
 
   it("matches snapshot for standard endpoint", () => {

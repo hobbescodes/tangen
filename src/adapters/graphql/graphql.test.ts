@@ -576,7 +576,7 @@ describe("generateFormOptions", () => {
 });
 
 describe("loadSchemaFromFiles", () => {
-  const testDir = join(tmpdir(), "tangen-graphql-test");
+  const testDir = join(tmpdir(), "tangrams-graphql-test");
 
   beforeEach(async () => {
     await mkdir(testDir, { recursive: true });

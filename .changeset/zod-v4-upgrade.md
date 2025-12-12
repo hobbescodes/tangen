@@ -1,5 +1,5 @@
 ---
-"tangen": minor
+"tangrams": minor
 ---
 
 Upgrade to Zod v4. Generated OpenAPI types now use Zod v4 top-level validators (e.g., `z.email()` instead of `z.string().email()`, `z.iso.datetime()` instead of `z.string().datetime()`). The peer dependency has been updated to require Zod >=4.0.0.

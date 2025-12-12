@@ -11,7 +11,7 @@ import { generateDefaultConfig } from "../../core/config";
 
 describe("init command logic", () => {
   const testDir = join(__dirname, ".test-init");
-  const configPath = join(testDir, "tangen.config.ts");
+  const configPath = join(testDir, "tangrams.config.ts");
 
   beforeEach(async () => {
     // Create test directory
@@ -64,7 +64,7 @@ describe("init command logic", () => {
     it("returns a valid TypeScript config template", () => {
       const config = generateDefaultConfig();
 
-      expect(config).toContain('import { defineConfig } from "tangen"');
+      expect(config).toContain('import { defineConfig } from "tangrams"');
       expect(config).toContain("export default defineConfig");
     });
 

@@ -9,7 +9,7 @@ export function generateClient(options: ClientGeneratorOptions): string {
   const { url } = options;
 
   return `/* eslint-disable */
-/* GraphQL Client - Generated once by tangen. Customize as needed. */
+/* GraphQL Client - Generated once by tangrams. Customize as needed. */
 
 import { GraphQLClient } from "graphql-request"
 

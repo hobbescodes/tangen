@@ -10,7 +10,7 @@ import { generateDefaultConfig } from "../../core/config";
 export const initCommand = defineCommand({
   meta: {
     name: "init",
-    description: "Initialize a tangen configuration file",
+    description: "Initialize a tangrams configuration file",
   },
   args: {
     force: {
@@ -21,7 +21,7 @@ export const initCommand = defineCommand({
     },
   },
   async run({ args }) {
-    const configPath = join(process.cwd(), "tangen.config.ts");
+    const configPath = join(process.cwd(), "tangrams.config.ts");
 
     if (existsSync(configPath) && !args.force) {
       consola.error(
@@ -33,10 +33,10 @@ export const initCommand = defineCommand({
     const configContent = generateDefaultConfig();
     await writeFile(configPath, configContent, "utf-8");
 
-    consola.success("Created tangen.config.ts");
+    consola.success("Created tangrams.config.ts");
     consola.info("Next steps:");
-    consola.info("  1. Update the schema URL/spec in tangen.config.ts");
+    consola.info("  1. Update the schema URL/spec in tangrams.config.ts");
     consola.info("  2. Create your GraphQL operation files (.graphql)");
-    consola.info("  3. Run `tangen generate` to generate TypeScript code");
+    consola.info("  3. Run `tangrams generate` to generate TypeScript code");
   },
 });

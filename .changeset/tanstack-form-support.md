@@ -1,5 +1,5 @@
 ---
-"tangen": minor
+"tangrams": minor
 ---
 
 Add TanStack Form support with `formOptions` generation

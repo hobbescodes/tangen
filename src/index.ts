@@ -1,5 +1,5 @@
-// Public API for tangen
+// Public API for tangrams
 
 export { defineConfig } from "./core/config";
 
-export type { TangenConfig } from "./core/config";
+export type { TangramsConfig } from "./core/config";

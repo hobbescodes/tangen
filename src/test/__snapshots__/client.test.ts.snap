@@ -2,7 +2,7 @@
 
 exports[`generateClient > matches snapshot for production endpoint 1`] = `
 "/* eslint-disable */
-/* GraphQL Client - Generated once by tangen. Customize as needed. */
+/* GraphQL Client - Generated once by tangrams. Customize as needed. */
 
 import { GraphQLClient } from "graphql-request"
 
@@ -24,7 +24,7 @@ export const getClient = async () => {
 
 exports[`generateClient > matches snapshot for standard endpoint 1`] = `
 "/* eslint-disable */
-/* GraphQL Client - Generated once by tangen. Customize as needed. */
+/* GraphQL Client - Generated once by tangrams. Customize as needed. */
 
 import { GraphQLClient } from "graphql-request"
 

@@ -1,5 +1,5 @@
 ---
-"tangen": minor
+"tangrams": minor
 ---
 
 Restructure output to use unified `zod/<source>/schema.ts` for Zod schemas

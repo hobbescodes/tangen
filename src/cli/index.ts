@@ -5,7 +5,7 @@ import { initCommand } from "./commands/init";
 
 const main = defineCommand({
   meta: {
-    name: "tangen",
+    name: "tangrams",
     version: "0.1.0",
     description: "Generate TanStack Query artifacts from GraphQL schemas",
   },

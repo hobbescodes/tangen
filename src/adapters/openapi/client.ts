@@ -15,7 +15,7 @@ export function generateOpenAPIClient(
   const { baseUrl } = schema;
 
   const content = `/* eslint-disable */
-/* OpenAPI Client - Generated once by tangen. Customize as needed. */
+/* OpenAPI Client - Generated once by tangrams. Customize as needed. */
 
 import { createFetch } from "@better-fetch/fetch"
 

@@ -13,12 +13,12 @@ import type {
   GraphQLSourceConfig,
   QueryFilesConfig,
   SourceConfig,
-  TangenConfig,
+  TangramsConfig,
   ZodFilesConfig,
 } from "./config";
 
 export interface GenerateOptions {
-  config: TangenConfig;
+  config: TangramsConfig;
   force?: boolean;
   /**
    * Cached schemas by source name.

@@ -3,7 +3,7 @@ import { basename } from "node:path";
 import { defineCommand } from "citty";
 import consola from "consola";
 
-import { loadTangenConfig, sourceGeneratesQuery } from "../../core/config";
+import { loadTangramsConfig, sourceGeneratesQuery } from "../../core/config";
 import { generate } from "../../core/generator";
 import {
   clearConsole,
@@ -15,7 +15,7 @@ import type { DotenvOptions } from "c12";
 import type {
   GraphQLSourceConfig,
   OpenAPISourceConfig,
-  TangenConfig,
+  TangramsConfig,
 } from "../../core/config";
 import type { GenerateResult } from "../../core/generator";
 
@@ -43,7 +43,7 @@ function getDotenvOptions(args: {
 /**
  * Get all document patterns from GraphQL sources that generate query code
  */
-function getDocumentPatterns(config: TangenConfig): string[] {
+function getDocumentPatterns(config: TangramsConfig): string[] {
   const patterns: string[] = [];
   for (const source of config.sources) {
     // Only watch GraphQL sources that generate query code
@@ -70,7 +70,7 @@ function isUrl(path: string): boolean {
 /**
  * Get all local OpenAPI spec files from sources
  */
-function getOpenAPISpecFiles(config: TangenConfig): string[] {
+function getOpenAPISpecFiles(config: TangramsConfig): string[] {
   const files: string[] = [];
   for (const source of config.sources) {
     if (source.type === "openapi") {
@@ -88,7 +88,7 @@ function getOpenAPISpecFiles(config: TangenConfig): string[] {
  * Run the generation once and return the result for caching
  */
 async function runGeneration(options: {
-  config: TangenConfig;
+  config: TangramsConfig;
   force: boolean;
   cachedSchemas?: Map<string, unknown>;
 }): Promise<GenerateResult> {
@@ -139,7 +139,7 @@ function displayWatchStatus(options: {
  */
 async function runWatchMode(options: {
   configPath: string;
-  config: TangenConfig;
+  config: TangramsConfig;
   dotenv: boolean | DotenvOptions;
   force: boolean;
 }): Promise<void> {
@@ -184,7 +184,7 @@ async function runWatchMode(options: {
 
     try {
       // Reload config
-      const result = await loadTangenConfig({
+      const result = await loadTangramsConfig({
         configPath,
         dotenv,
       });
@@ -370,7 +370,7 @@ export const generateCommand = defineCommand({
       consola.start("Loading configuration...");
 
       const dotenv = getDotenvOptions(args);
-      const { config, configPath } = await loadTangenConfig({
+      const { config, configPath } = await loadTangramsConfig({
         configPath: args.config,
         dotenv,
       });

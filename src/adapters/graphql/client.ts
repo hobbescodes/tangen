@@ -24,7 +24,7 @@ export function generateGraphQLClient(
     : " // TODO: Set your GraphQL endpoint URL";
 
   const content = `/* eslint-disable */
-/* GraphQL Client - Generated once by tangen. Customize as needed. */
+/* GraphQL Client - Generated once by tangrams. Customize as needed. */
 
 import { GraphQLClient } from "graphql-request"
 
