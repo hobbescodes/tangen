@@ -5,9 +5,13 @@ import { dirname, join, relative } from "node:path";
 import consola from "consola";
 
 import { getAdapter } from "@/adapters";
-import { hasMultipleSources } from "./config";
 
-import type { GraphQLSourceConfig, SourceConfig, TangenConfig } from "./config";
+import type {
+  GraphQLSourceConfig,
+  QueryConfig,
+  SourceConfig,
+  TangenConfig,
+} from "./config";
 
 export interface GenerateOptions {
   config: TangenConfig;
@@ -47,40 +51,40 @@ export async function generate(
   options: GenerateOptions,
 ): Promise<GenerateResult> {
   const { config, force = false, cachedSchemas } = options;
-  const { sources, output } = config;
-
-  const isMultiSource = hasMultipleSources(config);
   const generatedSchemas = new Map<string, unknown>();
 
-  // Process each source
-  for (const source of sources) {
-    await generateForSource({
-      source,
-      config,
-      output,
-      force,
-      isMultiSource,
-      cachedSchema: cachedSchemas?.get(source.name),
-      generatedSchemas,
+  // Process query config if present
+  if (config.query) {
+    const { sources, output } = config.query;
+
+    // Process each source
+    for (const source of sources) {
+      await generateForSource({
+        source,
+        queryConfig: config.query,
+        output,
+        force,
+        cachedSchema: cachedSchemas?.get(source.name),
+        generatedSchemas,
+      });
+    }
+
+    // Final success message
+    const sourceNames = sources.map((s) => s.name).join(", ");
+    consola.box({
+      title: "Generation Complete",
+      message: `Generated code for sources: ${sourceNames}\nOutput directory: ${output.dir}/query`,
     });
   }
-
-  // Final success message
-  const sourceNames = sources.map((s) => s.name).join(", ");
-  consola.box({
-    title: "Generation Complete",
-    message: `Generated code for sources: ${sourceNames}\nOutput directory: ${output.dir}`,
-  });
 
   return { schemas: generatedSchemas };
 }
 
 interface GenerateForSourceOptions {
   source: SourceConfig;
-  config: TangenConfig;
-  output: TangenConfig["output"];
+  queryConfig: QueryConfig;
+  output: QueryConfig["output"];
   force: boolean;
-  isMultiSource: boolean;
   cachedSchema?: unknown;
   generatedSchemas: Map<string, unknown>;
 }
@@ -91,26 +95,17 @@ interface GenerateForSourceOptions {
 async function generateForSource(
   options: GenerateForSourceOptions,
 ): Promise<void> {
-  const {
-    source,
-    config,
-    output,
-    force,
-    isMultiSource,
-    cachedSchema,
-    generatedSchemas,
-  } = options;
+  const { source, queryConfig, output, force, cachedSchema, generatedSchemas } =
+    options;
 
   consola.info(`\nProcessing source: ${source.name} (${source.type})`);
 
   // Get the adapter for this source type
   const adapter = getAdapter(source.type);
 
-  // Determine output directory (nested by source name if multi-source)
+  // Always output to query/<source-name>/ for consistency
   const baseOutputDir = join(process.cwd(), output.dir);
-  const sourceOutputDir = isMultiSource
-    ? join(baseOutputDir, source.name)
-    : baseOutputDir;
+  const sourceOutputDir = join(baseOutputDir, "query", source.name);
 
   // Ensure output directory exists
   await mkdir(sourceOutputDir, { recursive: true });
@@ -131,9 +126,8 @@ async function generateForSource(
 
   // Create generation context
   const context = {
-    config,
+    queryConfig,
     outputDir: sourceOutputDir,
-    isMultiSource,
   };
 
   // Step 2: Generate client (only if it doesn't exist or force is true)
@@ -181,7 +175,7 @@ async function generateForSource(
   const operationsResult = adapter.generateOperations(schema, source, {
     clientImportPath,
     typesImportPath,
-    includeSourceInQueryKey: isMultiSource,
+    sourceName: source.name,
   });
   await writeFile(operationsPath, operationsResult.content, "utf-8");
   consola.success(`Generated ${output.operations}`);

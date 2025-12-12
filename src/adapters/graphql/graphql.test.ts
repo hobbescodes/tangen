@@ -52,7 +52,7 @@ describe("GraphQL Adapter", () => {
       };
 
       const result = graphqlAdapter.generateClient(schema, testConfig, {
-        config: {
+        queryConfig: {
           sources: [testConfig],
           output: {
             dir: "./generated",
@@ -62,7 +62,6 @@ describe("GraphQL Adapter", () => {
           },
         },
         outputDir: "./generated",
-        isMultiSource: false,
       });
 
       expect(result.filename).toBe("client.ts");
@@ -84,7 +83,7 @@ describe("GraphQL Adapter", () => {
       };
 
       const result = graphqlAdapter.generateClient(schema, customConfig, {
-        config: {
+        queryConfig: {
           sources: [customConfig],
           output: {
             dir: "./generated",
@@ -94,7 +93,6 @@ describe("GraphQL Adapter", () => {
           },
         },
         outputDir: "./generated",
-        isMultiSource: false,
       });
 
       expect(result.content).toContain("https://api.example.com/graphql");
@@ -183,7 +181,7 @@ describe("GraphQL Adapter", () => {
       const result = graphqlAdapter.generateOperations(schema, testConfig, {
         clientImportPath: "./client",
         typesImportPath: "./types",
-        includeSourceInQueryKey: false,
+        sourceName: "test",
       });
 
       expect(result.filename).toBe("operations.ts");
@@ -216,7 +214,7 @@ describe("GraphQL Adapter", () => {
       const result = graphqlAdapter.generateOperations(schema, testConfig, {
         clientImportPath: "./client",
         typesImportPath: "./types",
-        includeSourceInQueryKey: true,
+        sourceName: "test",
       });
 
       // The query key should include the operation name

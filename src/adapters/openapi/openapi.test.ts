@@ -65,7 +65,7 @@ describe("OpenAPI Adapter", () => {
     it("generates a better-fetch client", async () => {
       const schema = await openapiAdapter.loadSchema(testConfig);
       const result = openapiAdapter.generateClient(schema, testConfig, {
-        config: {
+        queryConfig: {
           sources: [testConfig],
           output: {
             dir: "./generated",
@@ -75,7 +75,6 @@ describe("OpenAPI Adapter", () => {
           },
         },
         outputDir: "./generated/petstore",
-        isMultiSource: false,
       });
 
       expect(result.filename).toBe("client.ts");
@@ -93,7 +92,7 @@ describe("OpenAPI Adapter", () => {
       const result = openapiAdapter.generateOperations(schema, testConfig, {
         clientImportPath: "./client",
         typesImportPath: "./types",
-        includeSourceInQueryKey: false,
+        sourceName: "petstore",
       });
 
       expect(result.filename).toBe("operations.ts");
@@ -110,7 +109,7 @@ describe("OpenAPI Adapter", () => {
       const result = openapiAdapter.generateOperations(schema, testConfig, {
         clientImportPath: "./client",
         typesImportPath: "./types",
-        includeSourceInQueryKey: false,
+        sourceName: "petstore",
       });
 
       expect(result.content).toContain("mutationOptions");
@@ -121,12 +120,12 @@ describe("OpenAPI Adapter", () => {
       expect(result.content).toContain("deletePetMutationOptions");
     });
 
-    it("includes source name in query keys when includeSourceInQueryKey is true", async () => {
+    it("includes source name in query keys when sourceName is provided", async () => {
       const schema = await openapiAdapter.loadSchema(testConfig);
       const result = openapiAdapter.generateOperations(schema, testConfig, {
         clientImportPath: "./client",
         typesImportPath: "./types",
-        includeSourceInQueryKey: true,
+        sourceName: "petstore",
       });
 
       expect(result.content).toContain('"petstore"');
@@ -137,7 +136,7 @@ describe("OpenAPI Adapter", () => {
       const result = openapiAdapter.generateOperations(schema, testConfig, {
         clientImportPath: "./client",
         typesImportPath: "./types",
-        includeSourceInQueryKey: false,
+        sourceName: "petstore",
       });
 
       expect(result.content).toContain('from "./types"');
@@ -249,7 +248,7 @@ describe("Remote OpenAPI Spec Loading", () => {
         {
           clientImportPath: "./client",
           typesImportPath: "./types",
-          includeSourceInQueryKey: false,
+          sourceName: "petstore",
         },
       );
       expect(opsResult.content).toContain("listPetsQueryOptions");
@@ -277,12 +276,12 @@ describe("Remote OpenAPI Spec Loading", () => {
       const ops1 = openapiAdapter.generateOperations(schema1, config, {
         clientImportPath: "./client",
         typesImportPath: "./types",
-        includeSourceInQueryKey: false,
+        sourceName: "petstore",
       });
       const ops2 = openapiAdapter.generateOperations(schema2, config, {
         clientImportPath: "./client",
         typesImportPath: "./types",
-        includeSourceInQueryKey: false,
+        sourceName: "petstore",
       });
 
       // Output should be identical
@@ -1180,7 +1179,7 @@ describe("OpenAPI Extended Types Generation", () => {
     const result = openapiAdapter.generateOperations(schema, extendedConfig, {
       clientImportPath: "./client",
       typesImportPath: "./types",
-      includeSourceInQueryKey: false,
+      sourceName: "petstore-extended",
     });
 
     // Should handle the array parameter
@@ -1200,7 +1199,7 @@ describe("OpenAPI Operations Generation Edge Cases", () => {
     const result = openapiAdapter.generateOperations(schema, config, {
       clientImportPath: "./client",
       typesImportPath: "./types",
-      includeSourceInQueryKey: false,
+      sourceName: "petstore",
     });
 
     // updatePet has both path param and body
@@ -1219,7 +1218,7 @@ describe("OpenAPI Operations Generation Edge Cases", () => {
     const result = openapiAdapter.generateOperations(schema, config, {
       clientImportPath: "./client",
       typesImportPath: "./types",
-      includeSourceInQueryKey: false,
+      sourceName: "petstore",
     });
 
     // Should have proper imports
@@ -1238,7 +1237,7 @@ describe("OpenAPI Operations Generation Edge Cases", () => {
     const result = openapiAdapter.generateOperations(schema, config, {
       clientImportPath: "./client",
       typesImportPath: "./types",
-      includeSourceInQueryKey: false,
+      sourceName: "petstore",
     });
 
     // deletePet operation
