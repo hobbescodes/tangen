@@ -36,10 +36,9 @@ export interface FunctionsGenOptions {
 
 /**
  * Options for operation generation
+ * Note: Functions are always imported from "../functions" (hardcoded)
  */
 export interface OperationGenOptions {
-  /** Relative import path to the functions file (required if functions are generated) */
-  functionsImportPath?: string;
   /** Relative import path to the types/schema file */
   typesImportPath: string;
   /** The source name to include in query/mutation keys */
@@ -120,16 +119,13 @@ export interface CollectionDiscoveryResult {
 
 /**
  * Options for collection generation
+ * Note: Functions are always imported from "../functions" (hardcoded)
  */
 export interface CollectionGenOptions {
-  /** Relative import path to the functions file */
-  functionsImportPath: string;
   /** Relative import path to the types/schema file */
   typesImportPath: string;
   /** The source name */
   sourceName: string;
-  /** Collection type (currently only "query" supported) */
-  collectionType: "query";
   /** Per-entity overrides from config */
   collectionOverrides?: Record<string, { keyField?: string }>;
 }
@@ -142,7 +138,7 @@ export interface CollectionGenOptions {
  * 2. Generating a client for making requests
  * 3. Generating standalone fetch functions
  * 4. Generating TanStack Query operation helpers
- * 5. Generating Zod schemas for validation (OpenAPI always, GraphQL when form enabled)
+ * 5. Generating Zod schemas for validation (OpenAPI always, GraphQL when form/db enabled)
  * 6. Generating TanStack Form options for mutations
  * 7. (GraphQL only) Generating TypeScript types for operations
  */

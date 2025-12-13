@@ -127,7 +127,6 @@ class GraphQLAdapterImpl implements IGraphQLAdapter {
   ): GeneratedFile {
     const content = generateGraphQLOperations({
       documents: schema.documents,
-      functionsImportPath: options.functionsImportPath,
       typesImportPath: options.typesImportPath,
       sourceName: options.sourceName,
     });
@@ -176,7 +175,7 @@ class GraphQLAdapterImpl implements IGraphQLAdapter {
       schema.schema,
       { ...schema.documents, operations: mutations },
       {
-        scalars: config.scalars,
+        scalars: config.overrides?.scalars,
       },
     );
 

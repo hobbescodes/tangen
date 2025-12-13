@@ -13,6 +13,9 @@ import type {
 } from "../types";
 import type { ParsedOperation } from "./schema";
 
+/** Hardcoded import path for functions (always ../functions from query/) */
+const FUNCTIONS_IMPORT_PATH = "../functions";
+
 /**
  * Generate TanStack Query operation helpers from OpenAPI spec
  */
@@ -48,7 +51,7 @@ export function generateOpenAPIOperations(
   const functionImports = getFunctionImports(operations);
   if (functionImports.length > 0) {
     lines.push(
-      `import { ${functionImports.join(", ")} } from "${options.functionsImportPath}"`,
+      `import { ${functionImports.join(", ")} } from "${FUNCTIONS_IMPORT_PATH}"`,
     );
   }
   lines.push("");

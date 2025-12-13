@@ -2,57 +2,56 @@
 "tangrams": minor
 ---
 
-Add standalone functions generator and refactor to new architecture
+Simplify generates config to array-only format and move scalars to overrides
 
 **Breaking Changes:**
 
-- Output directory structure has changed from `<generator>/<source>/` to `<source>/<generator>/`
-  - Old: `src/generated/query/graphql/operations.ts`
-  - New: `src/generated/graphql/query/operations.ts`
-- `client.ts` and `schema.ts` are now at the source root level, shared by all generators
-- Replaced `start` generator with `functions` generator - generates standalone async functions at source root instead of createServerFn wrappers in start/ subdirectory
-- Removed `serverFunctions` option from query config - use the separate `functions` generator instead
-- Removed `@tanstack/react-router` and `@tanstack/react-start` peer dependencies
+- `generates` config now only accepts an array of generators: `["query", "form", "db"]`
+  - Object form with file customization is no longer supported
+  - All filenames are now hardcoded (no customization)
+- Removed `scalars` from source root - now at `overrides.scalars`
+- Removed `functions` from generates array - functions.ts is auto-generated when `query` or `db` is enabled
+- Output directory structure: `<source>/<generator>/` (e.g., `graphql/query/operations.ts`)
+- `client.ts` and `schema.ts` are at the source root level, shared by all generators
+- Removed `functionsImportPath` option - always imports from hardcoded `../functions` path
 
-**New Features:**
+**New Config Structure:**
 
-- Add `functions` generator for standalone fetch functions
-  - Generates simple async functions that can be used anywhere
-  - Generated at source root: `<source>/functions.ts`
-  - Can be used standalone: `generates: ["functions"]`
-  - Or with query: `generates: ["functions", "query"]`
-- Query operations and DB collections can now import from functions.ts using `functionsImportPath`
-- TanStack DB collection generator (also new in this release)
-  - New `db` generator option to generate `queryCollectionOptions`
-  - Auto-discovers entities from OpenAPI and GraphQL schemas
-  - Auto-detects key fields with configurable overrides
-  - Maps CRUD mutations automatically
-  - Collections import from functions.ts for fetch logic
+```typescript
+export default defineConfig({
+  sources: [
+    {
+      name: "graphql",
+      type: "graphql",
+      schema: { url: "http://localhost:4000/graphql" },
+      documents: "./src/graphql/**/*.graphql",
+      generates: ["query", "db"],  // Array only, no object form
+      overrides: {
+        scalars: { DateTime: "Date" },  // Moved from source root
+        db: {
+          collections: { Pet: { keyField: "petId" } }
+        }
+      }
+    }
+  ]
+})
+```
 
 **Migration:**
 
-Update your config from:
+From:
 ```typescript
-generates: ["query", "start"]
-// or
-generates: { query: { serverFunctions: true }, start: true }
+generates: { query: true, functions: true }
+scalars: { DateTime: "Date" }
 ```
 
 To:
 ```typescript
-generates: ["functions", "query"]
+generates: ["query"]
+overrides: {
+  scalars: { DateTime: "Date" }
+}
 ```
 
-Update your imports from:
-```typescript
-import { getUserQueryOptions } from "./generated/query/graphql/operations"
-import { getUserFn } from "./generated/graphql/start/functions"
-```
-
-To:
-```typescript
-import { getUserQueryOptions } from "./generated/graphql/query/operations"
-import { getUser } from "./generated/graphql/functions"
-```
-
-Note: Function names no longer have the `Fn` suffix (e.g., `getUser` instead of `getUserFn`)
+- `functions.ts` is now auto-generated when `query` or `db` is enabled (no need to specify)
+- When `db` is specified, `query` is auto-enabled (db depends on functions which needs types)

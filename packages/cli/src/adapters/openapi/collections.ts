@@ -18,6 +18,9 @@ import type {
 } from "../types";
 import type { ParsedOperation } from "./schema";
 
+/** Hardcoded import path for functions (always ../functions from db/) */
+const FUNCTIONS_IMPORT_PATH = "../functions";
+
 type OpenAPISchema = OpenAPIV3.SchemaObject | OpenAPIV3_1.SchemaObject;
 
 /**
@@ -393,7 +396,7 @@ export function generateOpenAPICollections(
 
   if (allFunctionImports.length > 0) {
     lines.push(
-      `import { ${allFunctionImports.join(", ")} } from "${options.functionsImportPath}"`,
+      `import { ${allFunctionImports.join(", ")} } from "${FUNCTIONS_IMPORT_PATH}"`,
     );
   }
 

@@ -200,7 +200,6 @@ describe("GraphQL Adapter", () => {
       };
 
       const result = graphqlAdapter.generateOperations(schema, testConfig, {
-        functionsImportPath: "./functions",
         typesImportPath: "./types",
         sourceName: "test",
       });
@@ -235,7 +234,6 @@ describe("GraphQL Adapter", () => {
       };
 
       const result = graphqlAdapter.generateOperations(schema, testConfig, {
-        functionsImportPath: "./functions",
         typesImportPath: "./types",
         sourceName: "test",
       });
@@ -751,10 +749,8 @@ describe("GraphQL Collection Discovery", () => {
     it("generates collection options code", async () => {
       const schema = await graphqlAdapter.loadSchema(config);
       const result = graphqlAdapter.generateCollections(schema, config, {
-        functionsImportPath: "./functions",
         typesImportPath: "./types",
         sourceName: "test-api",
-        collectionType: "query",
       });
 
       expect(result.filename).toBe("collections.ts");
@@ -765,10 +761,8 @@ describe("GraphQL Collection Discovery", () => {
     it("imports QueryClient type and createCollection", async () => {
       const schema = await graphqlAdapter.loadSchema(config);
       const result = graphqlAdapter.generateCollections(schema, config, {
-        functionsImportPath: "./functions",
         typesImportPath: "./types",
         sourceName: "test-api",
-        collectionType: "query",
       });
 
       expect(result.content).toContain("QueryClient");
@@ -780,36 +774,30 @@ describe("GraphQL Collection Discovery", () => {
     it("imports entity types from types file", async () => {
       const schema = await graphqlAdapter.loadSchema(config);
       const result = graphqlAdapter.generateCollections(schema, config, {
-        functionsImportPath: "./functions",
         typesImportPath: "./types",
         sourceName: "test-api",
-        collectionType: "query",
       });
 
       expect(result.content).toContain('from "./types"');
       expect(result.content).toContain("User");
     });
 
-    it("imports client functions from operations file", async () => {
+    it("imports client functions from hardcoded ../functions path", async () => {
       const schema = await graphqlAdapter.loadSchema(config);
       const result = graphqlAdapter.generateCollections(schema, config, {
-        functionsImportPath: "./functions",
         typesImportPath: "./types",
         sourceName: "test-api",
-        collectionType: "query",
       });
 
-      expect(result.content).toContain('from "./functions"');
+      expect(result.content).toContain('from "../functions"');
       expect(result.content).toContain("listUsers");
     });
 
     it("generates collection with queryKey, queryFn, and getKey", async () => {
       const schema = await graphqlAdapter.loadSchema(config);
       const result = graphqlAdapter.generateCollections(schema, config, {
-        functionsImportPath: "./functions",
         typesImportPath: "./types",
         sourceName: "test-api",
-        collectionType: "query",
       });
 
       expect(result.content).toContain("queryKey:");
@@ -820,10 +808,8 @@ describe("GraphQL Collection Discovery", () => {
     it("generates persistence handlers (onInsert, onUpdate, onDelete) when mutations available", async () => {
       const schema = await graphqlAdapter.loadSchema(config);
       const result = graphqlAdapter.generateCollections(schema, config, {
-        functionsImportPath: "./functions",
         typesImportPath: "./types",
         sourceName: "test-api",
-        collectionType: "query",
       });
 
       expect(result.content).toContain("onInsert:");
@@ -835,10 +821,8 @@ describe("GraphQL Collection Discovery", () => {
     it("exports named collection options factory", async () => {
       const schema = await graphqlAdapter.loadSchema(config);
       const result = graphqlAdapter.generateCollections(schema, config, {
-        functionsImportPath: "./functions",
         typesImportPath: "./types",
         sourceName: "test-api",
-        collectionType: "query",
       });
 
       expect(result.content).toContain("export const userCollectionOptions");

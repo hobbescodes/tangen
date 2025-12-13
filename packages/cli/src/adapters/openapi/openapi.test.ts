@@ -80,7 +80,6 @@ describe("OpenAPI Adapter", () => {
     it("generates TanStack Query options for GET operations", async () => {
       const schema = await openapiAdapter.loadSchema(testConfig);
       const result = openapiAdapter.generateOperations(schema, testConfig, {
-        functionsImportPath: "./functions",
         typesImportPath: "./types",
         sourceName: "petstore",
       });
@@ -97,7 +96,6 @@ describe("OpenAPI Adapter", () => {
     it("generates TanStack mutation options for non-GET operations", async () => {
       const schema = await openapiAdapter.loadSchema(testConfig);
       const result = openapiAdapter.generateOperations(schema, testConfig, {
-        functionsImportPath: "./functions",
         typesImportPath: "./types",
         sourceName: "petstore",
       });
@@ -113,7 +111,6 @@ describe("OpenAPI Adapter", () => {
     it("includes source name in query keys when sourceName is provided", async () => {
       const schema = await openapiAdapter.loadSchema(testConfig);
       const result = openapiAdapter.generateOperations(schema, testConfig, {
-        functionsImportPath: "./functions",
         typesImportPath: "./types",
         sourceName: "petstore",
       });
@@ -121,16 +118,16 @@ describe("OpenAPI Adapter", () => {
       expect(result.content).toContain('"petstore"');
     });
 
-    it("imports types from the types file", async () => {
+    it("imports types and functions from the correct paths", async () => {
       const schema = await openapiAdapter.loadSchema(testConfig);
       const result = openapiAdapter.generateOperations(schema, testConfig, {
-        functionsImportPath: "./functions",
         typesImportPath: "./types",
         sourceName: "petstore",
       });
 
       expect(result.content).toContain('from "./types"');
-      expect(result.content).toContain('from "./functions"');
+      // Functions are always imported from hardcoded ../functions path
+      expect(result.content).toContain('from "../functions"');
     });
   });
 });
@@ -243,7 +240,6 @@ describe("Remote OpenAPI Spec Loading", () => {
         cachedSchema,
         config,
         {
-          functionsImportPath: "./functions",
           typesImportPath: "./types",
           sourceName: "petstore",
         },
@@ -272,12 +268,10 @@ describe("Remote OpenAPI Spec Loading", () => {
 
       // Generate operations from both
       const ops1 = openapiAdapter.generateOperations(schema1, config, {
-        functionsImportPath: "./functions",
         typesImportPath: "./types",
         sourceName: "petstore",
       });
       const ops2 = openapiAdapter.generateOperations(schema2, config, {
-        functionsImportPath: "./functions",
         typesImportPath: "./types",
         sourceName: "petstore",
       });
@@ -1212,7 +1206,6 @@ describe("OpenAPI Extended Types Generation", () => {
   it("generates operations with array parameters", async () => {
     const schema = await openapiAdapter.loadSchema(extendedConfig);
     const result = openapiAdapter.generateOperations(schema, extendedConfig, {
-      functionsImportPath: "./functions",
       typesImportPath: "./types",
       sourceName: "petstore-extended",
     });
@@ -1233,7 +1226,6 @@ describe("OpenAPI Operations Generation Edge Cases", () => {
 
     const schema = await openapiAdapter.loadSchema(config);
     const result = openapiAdapter.generateOperations(schema, config, {
-      functionsImportPath: "./functions",
       typesImportPath: "./types",
       sourceName: "petstore",
     });
@@ -1253,13 +1245,12 @@ describe("OpenAPI Operations Generation Edge Cases", () => {
 
     const schema = await openapiAdapter.loadSchema(config);
     const result = openapiAdapter.generateOperations(schema, config, {
-      functionsImportPath: "./functions",
       typesImportPath: "./types",
       sourceName: "petstore",
     });
 
-    // Should have proper imports
-    expect(result.content).toContain('from "./functions"');
+    // Functions are always imported from hardcoded ../functions path
+    expect(result.content).toContain('from "../functions"');
     expect(result.content).toContain('from "./types"');
   });
 
@@ -1273,7 +1264,6 @@ describe("OpenAPI Operations Generation Edge Cases", () => {
 
     const schema = await openapiAdapter.loadSchema(config);
     const result = openapiAdapter.generateOperations(schema, config, {
-      functionsImportPath: "./functions",
       typesImportPath: "./types",
       sourceName: "petstore",
     });
@@ -1344,7 +1334,7 @@ describe("generateFunctions (OpenAPI standalone functions)", () => {
   const config: OpenAPISourceConfig = {
     name: "petstore",
     type: "openapi",
-    generates: ["query", "functions"],
+    generates: ["query"],
     spec: join(fixturesDir, "petstore.json"),
   };
 
@@ -1515,7 +1505,7 @@ describe("generateFunctions (OpenAPI standalone functions)", () => {
     const noParamsConfig: OpenAPISourceConfig = {
       name: "health",
       type: "openapi",
-      generates: ["functions"],
+      generates: ["query"],
       spec: "./health.json",
     };
 
@@ -1619,7 +1609,7 @@ describe("generateFunctions (OpenAPI standalone functions)", () => {
     const noParamsConfig: OpenAPISourceConfig = {
       name: "trigger",
       type: "openapi",
-      generates: ["functions"],
+      generates: ["query"],
       spec: "./trigger.json",
     };
 
@@ -1732,10 +1722,8 @@ describe("OpenAPI Collection Discovery", () => {
     it("generates collection options code", async () => {
       const schema = await openapiAdapter.loadSchema(config);
       const result = openapiAdapter.generateCollections(schema, config, {
-        functionsImportPath: "./functions",
         typesImportPath: "./schema",
         sourceName: "petstore",
-        collectionType: "query",
       });
 
       expect(result.filename).toBe("collections.ts");
@@ -1746,10 +1734,8 @@ describe("OpenAPI Collection Discovery", () => {
     it("imports QueryClient type and createCollection", async () => {
       const schema = await openapiAdapter.loadSchema(config);
       const result = openapiAdapter.generateCollections(schema, config, {
-        functionsImportPath: "./functions",
         typesImportPath: "./schema",
         sourceName: "petstore",
-        collectionType: "query",
       });
 
       expect(result.content).toContain("QueryClient");
@@ -1761,37 +1747,31 @@ describe("OpenAPI Collection Discovery", () => {
     it("imports entity types from types file", async () => {
       const schema = await openapiAdapter.loadSchema(config);
       const result = openapiAdapter.generateCollections(schema, config, {
-        functionsImportPath: "./functions",
         typesImportPath: "./schema",
         sourceName: "petstore",
-        collectionType: "query",
       });
 
       expect(result.content).toContain('from "./schema"');
       expect(result.content).toContain("Pet");
     });
 
-    it("imports functions from functions file", async () => {
+    it("imports functions from hardcoded ../functions path", async () => {
       const schema = await openapiAdapter.loadSchema(config);
       const result = openapiAdapter.generateCollections(schema, config, {
-        functionsImportPath: "./functions",
         typesImportPath: "./schema",
         sourceName: "petstore",
-        collectionType: "query",
       });
 
-      // Should import from functions
-      expect(result.content).toContain('from "./functions"');
+      // Functions are always imported from hardcoded ../functions path
+      expect(result.content).toContain('from "../functions"');
       expect(result.content).toContain("listPets");
     });
 
     it("generates collection with queryKey, queryFn, and getKey", async () => {
       const schema = await openapiAdapter.loadSchema(config);
       const result = openapiAdapter.generateCollections(schema, config, {
-        functionsImportPath: "./functions",
         typesImportPath: "./schema",
         sourceName: "petstore",
-        collectionType: "query",
       });
 
       expect(result.content).toContain("queryKey:");
@@ -1802,10 +1782,8 @@ describe("OpenAPI Collection Discovery", () => {
     it("generates persistence handlers (onInsert, onUpdate, onDelete) when mutations available", async () => {
       const schema = await openapiAdapter.loadSchema(config);
       const result = openapiAdapter.generateCollections(schema, config, {
-        functionsImportPath: "./functions",
         typesImportPath: "./schema",
         sourceName: "petstore",
-        collectionType: "query",
       });
 
       expect(result.content).toContain("onInsert:");
@@ -1817,10 +1795,8 @@ describe("OpenAPI Collection Discovery", () => {
     it("exports named collection options factory", async () => {
       const schema = await openapiAdapter.loadSchema(config);
       const result = openapiAdapter.generateCollections(schema, config, {
-        functionsImportPath: "./functions",
         typesImportPath: "./schema",
         sourceName: "petstore",
-        collectionType: "query",
       });
 
       expect(result.content).toContain("export const petCollectionOptions");

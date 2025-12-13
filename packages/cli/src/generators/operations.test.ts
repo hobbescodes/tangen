@@ -12,7 +12,6 @@ describe("generateGraphQLOperations", () => {
     const documents = await loadDocuments(`${fixturesDir}/user.graphql`);
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../functions",
       typesImportPath: "./types",
       sourceName: "test",
     });
@@ -24,7 +23,6 @@ describe("generateGraphQLOperations", () => {
     const documents = await loadDocuments(`${fixturesDir}/user.graphql`);
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../functions",
       typesImportPath: "./types",
       sourceName: "test",
     });
@@ -36,7 +34,6 @@ describe("generateGraphQLOperations", () => {
     const documents = await loadDocuments(`${fixturesDir}/user.graphql`);
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../functions",
       typesImportPath: "./types",
       sourceName: "test",
     });
@@ -46,23 +43,21 @@ describe("generateGraphQLOperations", () => {
     );
   });
 
-  it("imports functions from the specified functions path", async () => {
+  it("imports functions from the hardcoded ../functions path", async () => {
     const documents = await loadDocuments(`${fixturesDir}/user.graphql`);
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../custom-functions",
       typesImportPath: "./types",
       sourceName: "test",
     });
 
-    expect(result).toContain('from "../custom-functions"');
+    expect(result).toContain('from "../functions"');
   });
 
   it("imports types from the specified types path", async () => {
     const documents = await loadDocuments(`${fixturesDir}/user.graphql`);
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../functions",
       typesImportPath: "./custom-types",
       sourceName: "test",
     });
@@ -74,7 +69,6 @@ describe("generateGraphQLOperations", () => {
     const documents = await loadDocuments(`${fixturesDir}/user.graphql`);
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../functions",
       typesImportPath: "./types",
       sourceName: "test",
     });
@@ -87,7 +81,6 @@ describe("generateGraphQLOperations", () => {
     const documents = await loadDocuments(`${fixturesDir}/user.graphql`);
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../functions",
       typesImportPath: "./types",
       sourceName: "test",
     });
@@ -101,7 +94,6 @@ describe("generateGraphQLOperations", () => {
     const documents = await loadDocuments(`${fixturesDir}/user.graphql`);
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../functions",
       typesImportPath: "./types",
       sourceName: "test",
     });
@@ -114,7 +106,6 @@ describe("generateGraphQLOperations", () => {
     const documents = await loadDocuments(`${fixturesDir}/user.graphql`);
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../functions",
       typesImportPath: "./types",
       sourceName: "test",
     });
@@ -127,7 +118,6 @@ describe("generateGraphQLOperations", () => {
     const documents = await loadDocuments(`${fixturesDir}/user.graphql`);
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../functions",
       typesImportPath: "./types",
       sourceName: "test",
     });
@@ -142,7 +132,6 @@ describe("generateGraphQLOperations", () => {
     const documents = await loadDocuments(`${fixturesDir}/user.graphql`);
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../functions",
       typesImportPath: "./types",
       sourceName: "test",
     });
@@ -157,7 +146,6 @@ describe("generateGraphQLOperations", () => {
     const documents = await loadDocuments(`${fixturesDir}/query-only.graphql`);
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../functions",
       typesImportPath: "./types",
       sourceName: "test",
     });
@@ -174,7 +162,6 @@ describe("generateGraphQLOperations", () => {
     );
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../functions",
       typesImportPath: "./types",
       sourceName: "test",
     });
@@ -189,7 +176,6 @@ describe("generateGraphQLOperations", () => {
     const documents = await loadDocuments(`${fixturesDir}/user.graphql`);
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../functions",
       typesImportPath: "./types",
       sourceName: "test",
     });
@@ -202,7 +188,6 @@ describe("generateGraphQLOperations", () => {
     const documents = await loadDocuments(`${fixturesDir}/user.graphql`);
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../functions",
       typesImportPath: "./types",
       sourceName: "test",
     });
@@ -217,7 +202,6 @@ describe("generateGraphQLOperations", () => {
     const documents = await loadDocuments(`${fixturesDir}/user.graphql`);
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../functions",
       typesImportPath: "./types",
       sourceName: "test",
     });
@@ -229,7 +213,6 @@ describe("generateGraphQLOperations", () => {
     const documents = await loadDocuments(`${fixturesDir}/query-only.graphql`);
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../functions",
       typesImportPath: "./types",
       sourceName: "test",
     });
@@ -243,7 +226,6 @@ describe("generateGraphQLOperations", () => {
     );
     const result = generateGraphQLOperations({
       documents,
-      functionsImportPath: "../functions",
       typesImportPath: "./types",
       sourceName: "test",
     });

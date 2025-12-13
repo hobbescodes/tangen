@@ -17,8 +17,6 @@ import type { ParsedDocuments, ParsedOperation } from "../core/documents";
 
 export interface OperationsGeneratorOptions {
   documents: ParsedDocuments;
-  /** Import path to functions.ts (required if functions are generated separately) */
-  functionsImportPath?: string;
   typesImportPath: string;
   /** The source name to include in query/mutation keys */
   sourceName: string;
@@ -27,11 +25,13 @@ export interface OperationsGeneratorOptions {
 /**
  * Generate the operations file with queryOptions and mutationOptions
  */
+/** Hardcoded import path for functions (always ../functions from query/) */
+const FUNCTIONS_IMPORT_PATH = "../functions";
+
 export function generateGraphQLOperations(
   options: OperationsGeneratorOptions,
 ): string {
-  const { documents, functionsImportPath, typesImportPath, sourceName } =
-    options;
+  const { documents, typesImportPath, sourceName } = options;
   const { operations } = documents;
 
   const lines: string[] = [];
@@ -53,14 +53,12 @@ export function generateGraphQLOperations(
     );
   }
 
-  // Import functions from functions.ts (if functions path is provided)
-  if (functionsImportPath) {
-    const functionImports = getFunctionImports(operations);
-    if (functionImports.length > 0) {
-      lines.push(
-        `import { ${functionImports.join(", ")} } from "${functionsImportPath}"`,
-      );
-    }
+  // Import functions from functions.ts
+  const functionImports = getFunctionImports(operations);
+  if (functionImports.length > 0) {
+    lines.push(
+      `import { ${functionImports.join(", ")} } from "${FUNCTIONS_IMPORT_PATH}"`,
+    );
   }
   lines.push("");
 

@@ -30,6 +30,9 @@ import type {
   GraphQLAdapterSchema,
 } from "../types";
 
+/** Hardcoded import path for functions (always ../functions from db/) */
+const FUNCTIONS_IMPORT_PATH = "../functions";
+
 /**
  * Discover entities from a GraphQL schema for collection generation
  */
@@ -377,7 +380,7 @@ export function generateGraphQLCollections(
 
   if (allFunctionImports.length > 0) {
     lines.push(
-      `import { ${allFunctionImports.join(", ")} } from "${options.functionsImportPath}"`,
+      `import { ${allFunctionImports.join(", ")} } from "${FUNCTIONS_IMPORT_PATH}"`,
     );
   }
 
