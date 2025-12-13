@@ -654,3 +654,192 @@ describe("loadSchemaFromFiles", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("GraphQL Collection Discovery", () => {
+  const config: GraphQLSourceConfig = {
+    name: "test-api",
+    type: "graphql",
+    schema: { file: join(fixturesDir, "schema.graphql") },
+    documents: join(fixturesDir, "user.graphql"),
+    generates: ["query", "db"],
+  };
+
+  describe("discoverCollectionEntities", () => {
+    it("discovers entities from queries returning list types", async () => {
+      const schema = await graphqlAdapter.loadSchema(config);
+      const result = graphqlAdapter.discoverCollectionEntities(schema, config);
+
+      expect(result.entities.length).toBeGreaterThan(0);
+
+      // Should discover User entity from users query
+      const userEntity = result.entities.find((e) => e.name === "User");
+      expect(userEntity).toBeDefined();
+      expect(userEntity?.typeName).toBe("User");
+    });
+
+    it("auto-detects id field as key field for GraphQL types", async () => {
+      const schema = await graphqlAdapter.loadSchema(config);
+      const result = graphqlAdapter.discoverCollectionEntities(schema, config);
+
+      const userEntity = result.entities.find((e) => e.name === "User");
+      expect(userEntity?.keyField).toBe("id");
+      expect(userEntity?.keyFieldType).toBe("string");
+    });
+
+    it("discovers list query from documents", async () => {
+      const schema = await graphqlAdapter.loadSchema(config);
+      const result = graphqlAdapter.discoverCollectionEntities(schema, config);
+
+      const userEntity = result.entities.find((e) => e.name === "User");
+      expect(userEntity?.listQuery.operationName).toBe("ListUsers");
+      expect(userEntity?.listQuery.queryKey).toEqual(["User"]);
+    });
+
+    it("discovers CRUD mutations by naming convention", async () => {
+      const schema = await graphqlAdapter.loadSchema(config);
+      const result = graphqlAdapter.discoverCollectionEntities(schema, config);
+
+      const userEntity = result.entities.find((e) => e.name === "User");
+      expect(userEntity?.mutations).toBeDefined();
+
+      // Should have insert mutation (CreateUser)
+      const insertMutation = userEntity?.mutations.find(
+        (m) => m.type === "insert",
+      );
+      expect(insertMutation).toBeDefined();
+      expect(insertMutation?.operationName).toBe("CreateUser");
+
+      // Should have update mutation (UpdateUser)
+      const updateMutation = userEntity?.mutations.find(
+        (m) => m.type === "update",
+      );
+      expect(updateMutation).toBeDefined();
+      expect(updateMutation?.operationName).toBe("UpdateUser");
+
+      // Should have delete mutation (DeleteUser)
+      const deleteMutation = userEntity?.mutations.find(
+        (m) => m.type === "delete",
+      );
+      expect(deleteMutation).toBeDefined();
+      expect(deleteMutation?.operationName).toBe("DeleteUser");
+    });
+
+    it("supports keyField override via config", async () => {
+      const schema = await graphqlAdapter.loadSchema(config);
+      const result = graphqlAdapter.discoverCollectionEntities(schema, config, {
+        User: { keyField: "email" },
+      });
+
+      const userEntity = result.entities.find((e) => e.name === "User");
+      expect(userEntity?.keyField).toBe("email");
+    });
+
+    it("returns warning when configured keyField not found", async () => {
+      const schema = await graphqlAdapter.loadSchema(config);
+      const result = graphqlAdapter.discoverCollectionEntities(schema, config, {
+        User: { keyField: "nonExistentField" },
+      });
+
+      expect(result.warnings.length).toBeGreaterThan(0);
+      expect(result.warnings.some((w) => w.includes("nonExistentField"))).toBe(
+        true,
+      );
+    });
+  });
+
+  describe("generateCollections", () => {
+    it("generates collection options code", async () => {
+      const schema = await graphqlAdapter.loadSchema(config);
+      const result = graphqlAdapter.generateCollections(schema, config, {
+        operationsImportPath: "./operations",
+        typesImportPath: "./types",
+        sourceName: "test-api",
+        collectionType: "query",
+      });
+
+      expect(result.filename).toBe("collections.ts");
+      expect(result.content).toContain("queryCollectionOptions");
+      expect(result.content).toContain("@tanstack/query-db");
+    });
+
+    it("imports QueryClient type", async () => {
+      const schema = await graphqlAdapter.loadSchema(config);
+      const result = graphqlAdapter.generateCollections(schema, config, {
+        operationsImportPath: "./operations",
+        typesImportPath: "./types",
+        sourceName: "test-api",
+        collectionType: "query",
+      });
+
+      expect(result.content).toContain("QueryClient");
+      expect(result.content).toContain("@tanstack/react-query");
+    });
+
+    it("imports entity types from types file", async () => {
+      const schema = await graphqlAdapter.loadSchema(config);
+      const result = graphqlAdapter.generateCollections(schema, config, {
+        operationsImportPath: "./operations",
+        typesImportPath: "./types",
+        sourceName: "test-api",
+        collectionType: "query",
+      });
+
+      expect(result.content).toContain('from "./types"');
+      expect(result.content).toContain("User");
+    });
+
+    it("imports query options from operations file", async () => {
+      const schema = await graphqlAdapter.loadSchema(config);
+      const result = graphqlAdapter.generateCollections(schema, config, {
+        operationsImportPath: "./operations",
+        typesImportPath: "./types",
+        sourceName: "test-api",
+        collectionType: "query",
+      });
+
+      expect(result.content).toContain('from "./operations"');
+      expect(result.content).toContain("listUsersQueryOptions");
+    });
+
+    it("generates collection with getKey and getId functions", async () => {
+      const schema = await graphqlAdapter.loadSchema(config);
+      const result = graphqlAdapter.generateCollections(schema, config, {
+        operationsImportPath: "./operations",
+        typesImportPath: "./types",
+        sourceName: "test-api",
+        collectionType: "query",
+      });
+
+      expect(result.content).toContain("getKey:");
+      expect(result.content).toContain("getId:");
+    });
+
+    it("generates mutation handlers when available", async () => {
+      const schema = await graphqlAdapter.loadSchema(config);
+      const result = graphqlAdapter.generateCollections(schema, config, {
+        operationsImportPath: "./operations",
+        typesImportPath: "./types",
+        sourceName: "test-api",
+        collectionType: "query",
+      });
+
+      expect(result.content).toContain("mutations:");
+      expect(result.content).toContain("insert:");
+      expect(result.content).toContain("update:");
+      expect(result.content).toContain("delete:");
+    });
+
+    it("exports named collection options factory", async () => {
+      const schema = await graphqlAdapter.loadSchema(config);
+      const result = graphqlAdapter.generateCollections(schema, config, {
+        operationsImportPath: "./operations",
+        typesImportPath: "./types",
+        sourceName: "test-api",
+        collectionType: "query",
+      });
+
+      expect(result.content).toContain("export const userCollectionOptions");
+      expect(result.content).toContain("(queryClient: QueryClient)");
+    });
+  });
+});

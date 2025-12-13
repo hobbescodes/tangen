@@ -1824,3 +1824,191 @@ describe("generateStart (OpenAPI server functions)", () => {
     );
   });
 });
+
+describe("OpenAPI Collection Discovery", () => {
+  const config: OpenAPISourceConfig = {
+    name: "petstore",
+    type: "openapi",
+    generates: ["query", "db"],
+    spec: join(fixturesDir, "petstore.json"),
+  };
+
+  describe("discoverCollectionEntities", () => {
+    it("discovers entities from GET operations returning arrays", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.discoverCollectionEntities(schema, config);
+
+      expect(result.entities.length).toBeGreaterThan(0);
+
+      // Should discover Pet entity from listPets
+      const petEntity = result.entities.find((e) => e.name === "Pet");
+      expect(petEntity).toBeDefined();
+      expect(petEntity?.typeName).toBe("Pet");
+    });
+
+    it("auto-detects id field as key field", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.discoverCollectionEntities(schema, config);
+
+      const petEntity = result.entities.find((e) => e.name === "Pet");
+      expect(petEntity?.keyField).toBe("id");
+      expect(petEntity?.keyFieldType).toBe("string");
+    });
+
+    it("discovers list query from GET operation", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.discoverCollectionEntities(schema, config);
+
+      const petEntity = result.entities.find((e) => e.name === "Pet");
+      expect(petEntity?.listQuery.operationName).toBe("listPets");
+      expect(petEntity?.listQuery.queryKey).toEqual(["Pet"]);
+    });
+
+    it("discovers CRUD mutations for entities", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.discoverCollectionEntities(schema, config);
+
+      const petEntity = result.entities.find((e) => e.name === "Pet");
+      expect(petEntity?.mutations).toBeDefined();
+
+      // Should have insert mutation (POST /pets)
+      const insertMutation = petEntity?.mutations.find(
+        (m) => m.type === "insert",
+      );
+      expect(insertMutation).toBeDefined();
+      expect(insertMutation?.operationName).toBe("createPet");
+
+      // Should have update mutation (PUT /pets/{petId})
+      const updateMutation = petEntity?.mutations.find(
+        (m) => m.type === "update",
+      );
+      expect(updateMutation).toBeDefined();
+      expect(updateMutation?.operationName).toBe("updatePet");
+
+      // Should have delete mutation (DELETE /pets/{petId})
+      const deleteMutation = petEntity?.mutations.find(
+        (m) => m.type === "delete",
+      );
+      expect(deleteMutation).toBeDefined();
+      expect(deleteMutation?.operationName).toBe("deletePet");
+    });
+
+    it("supports keyField override via config", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.discoverCollectionEntities(schema, config, {
+        Pet: { keyField: "name" },
+      });
+
+      const petEntity = result.entities.find((e) => e.name === "Pet");
+      expect(petEntity?.keyField).toBe("name");
+    });
+
+    it("returns warning when key field not found", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.discoverCollectionEntities(schema, config, {
+        Pet: { keyField: "nonExistentField" },
+      });
+
+      expect(result.warnings.length).toBeGreaterThan(0);
+      expect(result.warnings.some((w) => w.includes("nonExistentField"))).toBe(
+        true,
+      );
+    });
+  });
+
+  describe("generateCollections", () => {
+    it("generates collection options code", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateCollections(schema, config, {
+        operationsImportPath: "./operations",
+        typesImportPath: "./schema",
+        sourceName: "petstore",
+        collectionType: "query",
+      });
+
+      expect(result.filename).toBe("collections.ts");
+      expect(result.content).toContain("queryCollectionOptions");
+      expect(result.content).toContain("@tanstack/query-db");
+    });
+
+    it("imports QueryClient type", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateCollections(schema, config, {
+        operationsImportPath: "./operations",
+        typesImportPath: "./schema",
+        sourceName: "petstore",
+        collectionType: "query",
+      });
+
+      expect(result.content).toContain("QueryClient");
+      expect(result.content).toContain("@tanstack/react-query");
+    });
+
+    it("imports entity types from types file", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateCollections(schema, config, {
+        operationsImportPath: "./operations",
+        typesImportPath: "./schema",
+        sourceName: "petstore",
+        collectionType: "query",
+      });
+
+      expect(result.content).toContain('from "./schema"');
+      expect(result.content).toContain("Pet");
+    });
+
+    it("imports query options from operations file", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateCollections(schema, config, {
+        operationsImportPath: "./operations",
+        typesImportPath: "./schema",
+        sourceName: "petstore",
+        collectionType: "query",
+      });
+
+      expect(result.content).toContain('from "./operations"');
+      expect(result.content).toContain("listPetsQueryOptions");
+    });
+
+    it("generates collection with getKey and getId functions", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateCollections(schema, config, {
+        operationsImportPath: "./operations",
+        typesImportPath: "./schema",
+        sourceName: "petstore",
+        collectionType: "query",
+      });
+
+      expect(result.content).toContain("getKey:");
+      expect(result.content).toContain("getId:");
+    });
+
+    it("generates mutation handlers when available", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateCollections(schema, config, {
+        operationsImportPath: "./operations",
+        typesImportPath: "./schema",
+        sourceName: "petstore",
+        collectionType: "query",
+      });
+
+      expect(result.content).toContain("mutations:");
+      expect(result.content).toContain("insert:");
+      expect(result.content).toContain("update:");
+      expect(result.content).toContain("delete:");
+    });
+
+    it("exports named collection options factory", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateCollections(schema, config, {
+        operationsImportPath: "./operations",
+        typesImportPath: "./schema",
+        sourceName: "petstore",
+        collectionType: "query",
+      });
+
+      expect(result.content).toContain("export const petCollectionOptions");
+      expect(result.content).toContain("(queryClient: QueryClient)");
+    });
+  });
+});

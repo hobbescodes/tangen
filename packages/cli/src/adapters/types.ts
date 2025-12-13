@@ -70,6 +70,76 @@ export interface FormGenOptions {
   sourceName: string;
 }
 
+// =============================================================================
+// TanStack DB Collection Types
+// =============================================================================
+
+/**
+ * Mutation type for collection CRUD operations
+ */
+export type CollectionMutationType = "insert" | "update" | "delete";
+
+/**
+ * Mutation info for a collection entity
+ */
+export interface CollectionMutation {
+  /** The mutation type (insert, update, delete) */
+  type: CollectionMutationType;
+  /** The operation name/identifier in the source */
+  operationName: string;
+  /** The input type name for this mutation (if applicable) */
+  inputTypeName?: string;
+}
+
+/**
+ * Entity metadata for collection generation
+ */
+export interface CollectionEntity {
+  /** The entity/model name (e.g., "Pet", "User") */
+  name: string;
+  /** The TypeScript type name for this entity */
+  typeName: string;
+  /** The key field for identifying unique entities (e.g., "id", "petId") */
+  keyField: string;
+  /** The TypeScript type of the key field */
+  keyFieldType: string;
+  /** The query operation that fetches the list of entities */
+  listQuery: {
+    /** Operation name */
+    operationName: string;
+    /** Query key for TanStack Query */
+    queryKey: string[];
+  };
+  /** Available mutations for this entity */
+  mutations: CollectionMutation[];
+}
+
+/**
+ * Result of discovering entities for collection generation
+ */
+export interface CollectionDiscoveryResult {
+  /** Discovered entities that can be used for collections */
+  entities: CollectionEntity[];
+  /** Warnings encountered during discovery */
+  warnings: string[];
+}
+
+/**
+ * Options for collection generation
+ */
+export interface CollectionGenOptions {
+  /** Relative import path to the operations file */
+  operationsImportPath: string;
+  /** Relative import path to the types/schema file */
+  typesImportPath: string;
+  /** The source name */
+  sourceName: string;
+  /** Collection type (currently only "query" supported) */
+  collectionType: "query";
+  /** Per-entity overrides from config */
+  collectionOverrides?: Record<string, { keyField?: string }>;
+}
+
 /**
  * Base interface for all source adapters
  *
@@ -154,6 +224,32 @@ export interface SourceAdapter<
     schema: TSchema,
     config: TConfig,
     options: FormGenOptions,
+  ): GeneratedFile;
+
+  /**
+   * Discover entities from the schema for TanStack DB collection generation
+   * @param schema The loaded schema
+   * @param config The source configuration
+   * @param overrides Per-entity config overrides (e.g., custom keyField)
+   * @returns Entity metadata for collection generation
+   */
+  discoverCollectionEntities(
+    schema: TSchema,
+    config: TConfig,
+    overrides?: Record<string, { keyField?: string }>,
+  ): CollectionDiscoveryResult;
+
+  /**
+   * Generate TanStack DB collection options
+   * @param schema The loaded schema
+   * @param config The source configuration
+   * @param options Collection generation options
+   * @returns Generated collections file
+   */
+  generateCollections(
+    schema: TSchema,
+    config: TConfig,
+    options: CollectionGenOptions,
   ): GeneratedFile;
 }
 

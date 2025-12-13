@@ -11,12 +11,18 @@ import {
 } from "@/generators/forms";
 import { generateOpenAPIZodSchemas } from "@/generators/zod/openapi";
 import { generateOpenAPIClient } from "./client";
+import {
+  discoverOpenAPIEntities,
+  generateOpenAPICollections,
+} from "./collections";
 import { generateOpenAPIOperations } from "./operations";
 import { extractOperations, loadOpenAPISpec } from "./schema";
 import { generateOpenAPIStart } from "./start";
 
 import type { OpenAPISourceConfig } from "@/core/config";
 import type {
+  CollectionDiscoveryResult,
+  CollectionGenOptions,
   FormGenOptions,
   GeneratedFile,
   OpenAPIAdapter as IOpenAPIAdapter,
@@ -143,6 +149,35 @@ class OpenAPIAdapterImpl implements IOpenAPIAdapter {
       content: result.content,
       warnings: result.warnings,
     };
+  }
+
+  /**
+   * Discover entities from the OpenAPI schema for TanStack DB collection generation
+   */
+  discoverCollectionEntities(
+    schema: OpenAPIAdapterSchema,
+    _config: OpenAPISourceConfig,
+    overrides?: Record<string, { keyField?: string }>,
+  ): CollectionDiscoveryResult {
+    const operations = extractOperations(schema.document);
+    return discoverOpenAPIEntities(schema, operations, overrides);
+  }
+
+  /**
+   * Generate TanStack DB collection options
+   */
+  generateCollections(
+    schema: OpenAPIAdapterSchema,
+    _config: OpenAPISourceConfig,
+    options: CollectionGenOptions,
+  ): GeneratedFile {
+    const operations = extractOperations(schema.document);
+    const { entities } = discoverOpenAPIEntities(
+      schema,
+      operations,
+      options.collectionOverrides,
+    );
+    return generateOpenAPICollections(entities, options);
   }
 }
 

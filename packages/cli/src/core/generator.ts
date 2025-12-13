@@ -11,6 +11,7 @@ import type { GraphQLAdapter, GraphQLAdapterSchema } from "@/adapters/types";
 import type {
   FormFilesConfig,
   GraphQLSourceConfig,
+  NormalizedDbGenerates,
   QueryFilesConfig,
   SourceConfig,
   StartFilesConfig,
@@ -74,6 +75,7 @@ export async function generate(
   const querySourceNames: string[] = [];
   const startSourceNames: string[] = [];
   const formSourceNames: string[] = [];
+  const dbSourceNames: string[] = [];
 
   // Process each source
   for (const source of config.sources) {
@@ -179,6 +181,28 @@ export async function generate(
       });
       formSourceNames.push(source.name);
     }
+
+    // Step 6: Generate db files if enabled
+    // DB generation requires query generation for operations import
+    if (generates.db && generates.query) {
+      // Determine types path
+      const typesPath =
+        source.type === "graphql"
+          ? join(sourceOutputDir, "query", generates.query.files.types)
+          : schemaPath;
+
+      if (typesPath) {
+        await generateDbFiles({
+          source,
+          sourceOutputDir,
+          dbConfig: generates.db,
+          schema,
+          queryOutputDir: join(sourceOutputDir, "query"),
+          typesPath,
+        });
+        dbSourceNames.push(source.name);
+      }
+    }
   }
 
   // Build output summary
@@ -190,6 +214,9 @@ export async function generate(
   }
   if (formSourceNames.length > 0) {
     generatedOutputs.push(`form (${formSourceNames.join(", ")})`);
+  }
+  if (dbSourceNames.length > 0) {
+    generatedOutputs.push(`db (${dbSourceNames.join(", ")})`);
   }
 
   // Final success message
@@ -515,6 +542,71 @@ async function generateFormFiles(
 
   await writeFile(formsPath, formResult.content, "utf-8");
   consola.success(`Generated ${source.name}/form/${files.forms}`);
+}
+
+// =============================================================================
+// DB (TanStack DB Collections) Generation
+// =============================================================================
+
+interface GenerateDbFilesOptions {
+  source: SourceConfig;
+  sourceOutputDir: string;
+  dbConfig: NormalizedDbGenerates;
+  schema: unknown;
+  /** Path to query output directory (for operations import) */
+  queryOutputDir: string;
+  /** Path to types file (query/types.ts for GraphQL, schema.ts for OpenAPI) */
+  typesPath: string;
+}
+
+/**
+ * Generate db files for a source
+ * Outputs to: <source-name>/db/collections.ts
+ */
+async function generateDbFiles(options: GenerateDbFilesOptions): Promise<void> {
+  const {
+    source,
+    sourceOutputDir,
+    dbConfig,
+    schema,
+    queryOutputDir,
+    typesPath,
+  } = options;
+
+  consola.info(`Generating db files for: ${source.name}`);
+
+  const adapter = getAdapter(source.type);
+  const dbOutputDir = join(sourceOutputDir, "db");
+
+  // Ensure output directory exists
+  await mkdir(dbOutputDir, { recursive: true });
+
+  // Generate collections
+  const collectionsPath = join(dbOutputDir, dbConfig.files.collections);
+
+  // Calculate relative import paths
+  const collectionsDir = dirname(collectionsPath);
+  const operationsPath = join(queryOutputDir, "operations.ts");
+  const operationsImportPath = `./${relative(collectionsDir, operationsPath).replace(/\.ts$/, "")}`;
+  const typesImportPath = `./${relative(collectionsDir, typesPath).replace(/\.ts$/, "")}`;
+
+  const dbResult = adapter.generateCollections(schema, source, {
+    operationsImportPath,
+    typesImportPath,
+    sourceName: source.name,
+    collectionType: dbConfig.collectionType,
+    collectionOverrides: dbConfig.collections,
+  });
+
+  // Log any warnings
+  if (dbResult.warnings) {
+    for (const warning of dbResult.warnings) {
+      consola.warn(warning);
+    }
+  }
+
+  await writeFile(collectionsPath, dbResult.content, "utf-8");
+  consola.success(`Generated ${source.name}/db/${dbConfig.files.collections}`);
 }
 
 // =============================================================================

@@ -20,7 +20,7 @@ Currently supporting **TanStack Query** and **TanStack Form** with more integrat
 - **TanStack Query** - Generate type-safe `queryOptions` and `mutationOptions` from your GraphQL operations or OpenAPI specs
 - **TanStack Start** - Optionally wrap operations in `createServerFn` for server-side data fetching
 - **TanStack Form** - Generate type-safe `formOptions` with Zod validation schemas from your mutations
-- **TanStack DB** - Generate collection definitions from your schema _(coming soon)_
+- **TanStack DB** - Generate `queryCollectionOptions` with auto-detected CRUD operations for local-first data
 - **TanStack Pacer** - Generate rate-limited operation wrappers _(coming soon)_
 
 ## Supported Data Sources
@@ -61,6 +61,12 @@ bun add @tanstack/react-form zod
 
 ```bash
 bun add @tanstack/react-router @tanstack/react-start
+```
+
+**TanStack DB (`generates` includes `"db"`):**
+
+```bash
+bun add @tanstack/db @tanstack/query-db @tanstack/react-query
 ```
 
 **GraphQL sources (when generating `"query"`):**
@@ -307,7 +313,9 @@ Each source must specify what to generate via the `generates` property. It accep
 ```typescript
 generates: ["query"]; // Generate only TanStack Query code
 generates: ["form"]; // Generate only TanStack Form code
-generates: ["query", "form"]; // Generate both
+generates: ["db"]; // Generate only TanStack DB collections
+generates: ["query", "form"]; // Generate both query and form
+generates: ["query", "db"]; // Generate query and db collections
 ```
 
 **Object form (customize filenames):**
@@ -331,6 +339,15 @@ generates: {
   form: {
     files: {
       forms: "user-forms.ts",        // default: "forms.ts"
+    },
+  },
+  db: {                              // generate TanStack DB collections
+    collectionType: "query",          // currently only "query" supported
+    collections: {                    // optional per-entity overrides
+      Pet: { keyField: "petId" },     // override auto-detected key field
+    },
+    files: {
+      collections: "db-collections.ts", // default: "collections.ts"
     },
   },
 }
@@ -396,8 +413,10 @@ src/generated/
     │   └── operations.ts  # queryOptions and mutationOptions
     ├── start/             # TanStack Start output (when using start generator)
     │   └── functions.ts   # createServerFn wrappers
-    └── form/              # TanStack Form output
-        └── forms.ts       # formOptions
+    ├── form/              # TanStack Form output
+    │   └── forms.ts       # formOptions
+    └── db/                # TanStack DB output
+        └── collections.ts # queryCollectionOptions
 ```
 
 **Note:** The `client.ts` and `schema.ts` files are at the source root, shared by all generators. Server functions are in a separate `start/` directory and are imported by `query/operations.ts` when `serverFunctions: true`.
@@ -879,9 +898,148 @@ import { getUserFn } from "./generated/graphql/start/functions";
 const user = await getUserFn({ data: { id: "123" } });
 ```
 
+## TanStack DB Integration
+
+tangrams can generate collection options for TanStack DB, enabling local-first data patterns with automatic CRUD operation mapping.
+
+### Configuration
+
+Add `"db"` to your source's `generates` array (requires `"query"` as well):
+
+```typescript
+import { defineConfig } from "tangrams";
+
+export default defineConfig({
+  sources: [
+    {
+      name: "api",
+      type: "openapi",
+      spec: "./openapi.yaml",
+      generates: ["query", "db"], // Generate query and db collections
+    },
+  ],
+});
+```
+
+### Peer Dependencies
+
+For DB generation, you'll need:
+
+```bash
+bun add @tanstack/db @tanstack/query-db @tanstack/react-query
+```
+
+### Entity Discovery
+
+tangrams automatically discovers entities for collection generation:
+
+**OpenAPI:**
+
+- Finds GET endpoints returning arrays (e.g., `GET /pets` returning `Pet[]`)
+- Maps CRUD operations by path pattern:
+  - `POST /pets` → insert
+  - `PUT /pets/{id}` or `PATCH /pets/{id}` → update
+  - `DELETE /pets/{id}` → delete
+
+**GraphQL:**
+
+- Finds queries returning list types (e.g., `users: [User!]!`)
+- Maps mutations by naming convention:
+  - `createUser` → insert
+  - `updateUser` → update
+  - `deleteUser` or `removeUser` → delete
+
+### Key Field Detection
+
+By default, tangrams looks for an `id` field (or GraphQL `ID` type) as the key field. Override this per-entity:
+
+```typescript
+generates: {
+  query: true,
+  db: {
+    collections: {
+      Pet: { keyField: "petId" },
+      User: { keyField: "uuid" },
+    },
+  },
+}
+```
+
+### Generated Output
+
+```
+src/generated/
+└── api/
+    ├── client.ts
+    ├── schema.ts
+    ├── query/
+    │   └── operations.ts
+    └── db/
+        └── collections.ts
+```
+
+#### `<source>/db/collections.ts`
+
+Collection options with query and mutation handlers:
+
+```typescript
+import { queryCollectionOptions } from "@tanstack/query-db";
+import type { QueryClient } from "@tanstack/react-query";
+import type { Pet } from "../schema";
+import {
+  listPetsQueryOptions,
+  createPetMutationOptions,
+  updatePetMutationOptions,
+  deletePetMutationOptions,
+} from "../query/operations";
+
+/**
+ * Collection options for Pet
+ */
+export const petCollectionOptions = (queryClient: QueryClient) =>
+  queryCollectionOptions<Pet, "id", string>({
+    queryClient,
+    getKey: (item) => item.id,
+    getId: (item) => item.id,
+    queries: {
+      list: listPetsQueryOptions(),
+    },
+    mutations: {
+      insert: createPetMutationOptions(),
+      update: updatePetMutationOptions(),
+      delete: deletePetMutationOptions(),
+    },
+  });
+```
+
+### Usage
+
+Use the generated collection options with TanStack DB:
+
+```typescript
+import { createCollection } from "@tanstack/db";
+import { useQueryClient } from "@tanstack/react-query";
+import { petCollectionOptions } from "./generated/api/db/collections";
+
+function PetList() {
+  const queryClient = useQueryClient();
+  const collection = createCollection(petCollectionOptions(queryClient));
+
+  // Use collection.query(), collection.insert(), etc.
+  const pets = collection.query();
+
+  return (
+    <ul>
+      {pets.map((pet) => (
+        <li key={pet.id}>{pet.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
 ## Roadmap
 
-- TanStack DB integration
 - TanStack Pacer integration
 
 ## Contributing

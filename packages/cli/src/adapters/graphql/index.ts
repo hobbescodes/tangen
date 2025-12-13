@@ -11,6 +11,10 @@ import { generateStartFunctions } from "@/generators/start";
 import { generateGraphQLZodSchemas } from "@/generators/zod/graphql";
 import { toSchemaName } from "@/generators/zod/index";
 import { generateGraphQLClient } from "./client";
+import {
+  discoverGraphQLEntities,
+  generateGraphQLCollections,
+} from "./collections";
 import { generateGraphQLOperations } from "./operations";
 import {
   introspectSchema,
@@ -23,6 +27,8 @@ import { generateGraphQLTypes } from "./types";
 import type { GraphQLSchema } from "graphql";
 import type { GraphQLSourceConfig } from "@/core/config";
 import type {
+  CollectionDiscoveryResult,
+  CollectionGenOptions,
   FormGenOptions,
   GeneratedFile,
   GraphQLAdapterSchema,
@@ -232,6 +238,32 @@ class GraphQLAdapterImpl implements IGraphQLAdapter {
       content: result.content,
       warnings: result.warnings,
     };
+  }
+
+  /**
+   * Discover entities from the GraphQL schema for TanStack DB collection generation
+   */
+  discoverCollectionEntities(
+    schema: GraphQLAdapterSchema,
+    _config: GraphQLSourceConfig,
+    overrides?: Record<string, { keyField?: string }>,
+  ): CollectionDiscoveryResult {
+    return discoverGraphQLEntities(schema, overrides);
+  }
+
+  /**
+   * Generate TanStack DB collection options
+   */
+  generateCollections(
+    schema: GraphQLAdapterSchema,
+    _config: GraphQLSourceConfig,
+    options: CollectionGenOptions,
+  ): GeneratedFile {
+    const { entities } = discoverGraphQLEntities(
+      schema,
+      options.collectionOverrides,
+    );
+    return generateGraphQLCollections(entities, options);
   }
 }
 

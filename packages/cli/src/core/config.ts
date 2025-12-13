@@ -87,6 +87,20 @@ export type ZodFilesConfig = z.output<typeof zodFilesSchema>;
 /** Zod files config input (before defaults are applied) */
 export type ZodFilesConfigInput = z.input<typeof zodFilesSchema>;
 
+/**
+ * DB-specific file naming configuration (with defaults)
+ */
+export const dbFilesSchema = z.object({
+  /** Filename for the generated collection options (default: collections.ts) */
+  collections: z.string().default("collections.ts"),
+});
+
+/** DB files config after parsing (defaults applied) */
+export type DbFilesConfig = z.output<typeof dbFilesSchema>;
+
+/** DB files config input (before defaults are applied) */
+export type DbFilesConfigInput = z.input<typeof dbFilesSchema>;
+
 // =============================================================================
 // Generates Configuration Schemas
 // =============================================================================
@@ -118,6 +132,33 @@ export const formGenerateOptionsSchema = z.object({
 });
 
 /**
+ * Per-collection configuration for DB generator
+ */
+export const dbCollectionConfigSchema = z.object({
+  /** Override the key field for this collection (default: auto-detected 'id' field) */
+  keyField: z.string().optional(),
+});
+
+export type DbCollectionConfig = z.infer<typeof dbCollectionConfigSchema>;
+
+/**
+ * DB generation options (per-source)
+ */
+export const dbGenerateOptionsSchema = z.object({
+  /** File naming configuration */
+  files: dbFilesSchema.optional(),
+  /** Collection type - currently only "query" is supported */
+  collectionType: z.enum(["query"]).default("query"),
+  /** Per-collection overrides (key: entity name, value: collection config) */
+  collections: z.record(z.string(), dbCollectionConfigSchema).optional(),
+});
+
+export type DbGenerateOptionsConfig = z.infer<typeof dbGenerateOptionsSchema>;
+export type DbGenerateOptionsConfigInput = z.input<
+  typeof dbGenerateOptionsSchema
+>;
+
+/**
  * Generates config as object (for customization)
  */
 export const generatesObjectSchema = z
@@ -132,20 +173,23 @@ export const generatesObjectSchema = z
     start: z.union([z.literal(true), startGenerateOptionsSchema]).optional(),
     /** TanStack Form generation options */
     form: z.union([z.literal(true), formGenerateOptionsSchema]).optional(),
+    /** TanStack DB generation options */
+    db: z.union([z.literal(true), dbGenerateOptionsSchema]).optional(),
   })
   .refine(
     (obj) =>
       obj.query !== undefined ||
       obj.start !== undefined ||
-      obj.form !== undefined,
-    "At least one generator must be specified (query, start, or form)",
+      obj.form !== undefined ||
+      obj.db !== undefined,
+    "At least one generator must be specified (query, start, form, or db)",
   );
 
 /**
  * Generates config as array (simple form)
  */
 export const generatesArraySchema = z
-  .array(z.enum(["query", "start", "form"]))
+  .array(z.enum(["query", "start", "form", "db"]))
   .min(1, "At least one generator must be specified");
 
 /**
@@ -396,6 +440,15 @@ export default defineConfig({
 // =============================================================================
 
 /**
+ * Normalized DB generates config
+ */
+export interface NormalizedDbGenerates {
+  files: DbFilesConfig;
+  collectionType: "query";
+  collections?: Record<string, DbCollectionConfig>;
+}
+
+/**
  * Normalized generates config result
  */
 export interface NormalizedGenerates {
@@ -404,6 +457,7 @@ export interface NormalizedGenerates {
   query?: { files: QueryFilesConfig; serverFunctions?: boolean };
   start?: { files: StartFilesConfig };
   form?: { files: FormFilesConfig };
+  db?: NormalizedDbGenerates;
 }
 
 /**
@@ -438,6 +492,13 @@ export function normalizeGenerates(
     if (generates.includes("form")) {
       result.form = {
         files: { forms: "forms.ts" },
+      };
+    }
+
+    if (generates.includes("db")) {
+      result.db = {
+        files: { collections: "collections.ts" },
+        collectionType: "query",
       };
     }
 
@@ -489,6 +550,25 @@ export function normalizeGenerates(
     };
   }
 
+  if (generates.db) {
+    const dbConfig =
+      generates.db === true
+        ? {}
+        : (generates.db as {
+            files?: unknown;
+            collectionType?: "query";
+            collections?: Record<string, DbCollectionConfig>;
+          });
+    const filesInput = dbConfig.files as DbFilesConfigInput | undefined;
+    result.db = {
+      files: {
+        collections: filesInput?.collections ?? "collections.ts",
+      },
+      collectionType: dbConfig.collectionType ?? "query",
+      collections: dbConfig.collections,
+    };
+  }
+
   return result;
 }
 
@@ -520,6 +600,16 @@ export function sourceGeneratesStart(source: SourceConfig): boolean {
     return source.generates.includes("start");
   }
   return source.generates.start !== undefined;
+}
+
+/**
+ * Check if a source generates db code (TanStack DB collections)
+ */
+export function sourceGeneratesDb(source: SourceConfig): boolean {
+  if (Array.isArray(source.generates)) {
+    return source.generates.includes("db");
+  }
+  return source.generates.db !== undefined;
 }
 
 /**
@@ -581,4 +671,11 @@ export function sourceUsesServerFunctions(source: SourceConfig): boolean {
  */
 export function getStartSources(config: TangramsConfig): SourceConfig[] {
   return config.sources.filter(sourceGeneratesStart);
+}
+
+/**
+ * Get all sources that generate db code (TanStack DB collections)
+ */
+export function getDbSources(config: TangramsConfig): SourceConfig[] {
+  return config.sources.filter(sourceGeneratesDb);
 }
