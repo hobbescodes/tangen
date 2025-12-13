@@ -277,12 +277,12 @@ export default defineConfig({
         },
       },
       documents: "./src/graphql/**/*.graphql",
-      scalars: {
-        DateTime: "Date",
+      generates: ["query"], // or ["query", "form", "db"] for all
+      overrides: {
+        scalars: { DateTime: "Date" },
       },
-      generates: ["query"], // or ["query", "form"] for both
     },
-    // OpenAPI source generating both query and form
+    // OpenAPI source generating query, form, and db
     {
       name: "rest-api",
       type: "openapi",
@@ -292,7 +292,14 @@ export default defineConfig({
       },
       include: ["/users/**", "/posts/**"],
       exclude: ["/internal/**"],
-      generates: ["query", "form"],
+      generates: ["query", "form", "db"],
+      overrides: {
+        db: {
+          collections: {
+            User: { keyField: "uuid" },
+          },
+        },
+      },
     },
   ],
 });
@@ -300,56 +307,25 @@ export default defineConfig({
 
 ### The `generates` Property
 
-Each source must specify what to generate via the `generates` property. It accepts:
-
-**Array form (uses default filenames):**
+Each source must specify what to generate via the `generates` property. It accepts an array of generators:
 
 ```typescript
-generates: ["query"]; // Generate only TanStack Query code
-generates: ["form"]; // Generate only TanStack Form code
-generates: ["db"]; // Generate only TanStack DB collections
+generates: ["query"]; // Generate TanStack Query code
+generates: ["form"]; // Generate TanStack Form code
+generates: ["db"]; // Generate TanStack DB collections (auto-enables query)
 generates: ["query", "form"]; // Generate both query and form
-generates: ["query", "db"]; // Generate query and db collections
-generates: ["functions"]; // Generate standalone fetch functions
-generates: ["query", "functions"]; // Generate both query and functions
+generates: ["query", "form", "db"]; // Generate all three
 ```
 
-**Object form (customize filenames):**
+**Available generators:**
 
-```typescript
-generates: {
-  client: "api-client.ts",          // default: "client.ts" (at source root)
-  schema: "api-schema.ts",          // default: "schema.ts" (at source root)
-  functions: {                       // generate standalone fetch functions
-    files: {
-      functions: "api-functions.ts", // default: "functions.ts" (at source root)
-    },
-  },
-  query: {
-    functionsImportPath: "../functions", // import functions from functions.ts
-    files: {
-      types: "api-types.ts",         // default: "types.ts" (GraphQL only)
-      operations: "api-ops.ts",      // default: "operations.ts"
-    },
-  },
-  form: {
-    files: {
-      forms: "user-forms.ts",        // default: "forms.ts"
-    },
-  },
-  db: {                              // generate TanStack DB collections
-    collectionType: "query",          // currently only "query" supported
-    collections: {                    // optional per-entity overrides
-      Pet: { keyField: "petId" },     // override auto-detected key field
-    },
-    files: {
-      collections: "db-collections.ts", // default: "collections.ts"
-    },
-  },
-}
-```
+- `"query"` - Generates `queryOptions` and `mutationOptions` for TanStack Query
+- `"form"` - Generates `formOptions` with Zod validation for TanStack Form
+- `"db"` - Generates `queryCollectionOptions` for TanStack DB (automatically enables `query`)
 
-**Note:** The `client`, `schema`, and `functions` files are at the source root level, shared by all generators.
+**Note:** When `db` is specified, `query` is automatically enabled since DB collections depend on the underlying fetch functions.
+
+The `functions.ts` file (containing standalone fetch functions) is automatically generated when `query` or `db` is enabled. All files use hardcoded names - no filename customization is available.
 
 ### GraphQL Source Options
 
@@ -359,8 +335,23 @@ generates: {
 | `type`      | `"graphql"`              | Yes      | Source type                                    |
 | `schema`    | `object`                 | Yes      | Schema configuration (see below)               |
 | `documents` | `string \| string[]`     | Yes      | Glob pattern(s) for `.graphql` operation files |
-| `scalars`   | `Record<string, string>` | No       | Custom scalar type mappings                    |
-| `generates` | `array \| object`        | Yes      | What to generate (see above)                   |
+| `generates` | `array`                  | Yes      | What to generate: `["query", "form", "db"]`    |
+| `overrides` | `object`                 | No       | Override scalars and DB collection settings    |
+
+#### Overrides Configuration
+
+```typescript
+overrides: {
+  scalars: {
+    DateTime: "Date",   // Custom scalar type mappings
+  },
+  db: {
+    collections: {
+      User: { keyField: "uuid" },  // Override auto-detected key field
+    },
+  },
+}
+```
 
 #### Schema Configuration (choose one)
 
@@ -387,7 +378,8 @@ generates: {
 | `headers`   | `Record<string, string>` | No       | Headers for fetching remote spec         |
 | `include`   | `string[]`               | No       | Glob patterns for paths to include       |
 | `exclude`   | `string[]`               | No       | Glob patterns for paths to exclude       |
-| `generates` | `array \| object`        | Yes      | What to generate (see above)             |
+| `generates` | `array`                  | Yes      | What to generate: `["query", "form", "db"]` |
+| `overrides` | `object`                 | No       | Override DB collection settings (see GraphQL section) |
 
 ### Global Options
 
@@ -414,7 +406,7 @@ src/generated/
         └── collections.ts # queryCollectionOptions (imports from ../functions.ts)
 ```
 
-**Note:** The `client.ts`, `schema.ts`, and `functions.ts` files are at the source root, shared by all generators. When using `functionsImportPath`, `query/operations.ts` imports from `functions.ts`.
+**Note:** The `client.ts`, `schema.ts`, and `functions.ts` files are at the source root, shared by all generators. The `query/operations.ts` and `db/collections.ts` files automatically import from `functions.ts`.
 
 ### Default Scalar Mappings (GraphQL)
 
@@ -768,51 +760,20 @@ function CreateUserForm() {
 
 ## Standalone Functions
 
-tangrams can generate standalone async fetch functions that can be used directly in your code or with any framework. These functions provide a simple, typed interface for making API calls.
-
-### Configuration
-
-Add `"functions"` to your `generates` array:
-
-```typescript
-import { defineConfig } from "tangrams";
-
-export default defineConfig({
-  sources: [
-    {
-      name: "graphql",
-      type: "graphql",
-      schema: { url: "http://localhost:4000/graphql" },
-      documents: "./src/graphql/**/*.graphql",
-      generates: ["query", "functions"], // Generate both query options and standalone functions
-    },
-  ],
-});
-```
-
-To have your query operations import from the standalone functions, use `functionsImportPath`:
-
-```typescript
-generates: {
-  functions: true,
-  query: {
-    functionsImportPath: "../functions", // operations.ts will import from functions.ts
-  },
-}
-```
+tangrams automatically generates standalone async fetch functions when `query` or `db` is enabled. These functions provide a simple, typed interface for making API calls and are used internally by the generated `operations.ts` and `collections.ts` files.
 
 ### Generated Output
 
-When using the `functions` generator, tangrams creates standalone functions at the source root:
+When `query` or `db` is in your `generates` array, tangrams creates standalone functions at the source root:
 
 ```
 src/generated/
 └── graphql/
     ├── client.ts
-    ├── functions.ts       # Standalone async fetch functions
+    ├── functions.ts       # Auto-generated standalone async fetch functions
     └── query/
         ├── types.ts
-        └── operations.ts  # Can import from ../functions.ts
+        └── operations.ts  # Imports from ../functions.ts
 ```
 
 #### `<source>/functions.ts`
@@ -849,7 +810,7 @@ export async function createUser(
 }
 ```
 
-#### `<source>/query/operations.ts` (with `functionsImportPath`)
+#### `<source>/query/operations.ts`
 
 Query options that import and use the standalone functions:
 
@@ -908,7 +869,7 @@ tangrams can generate collection options for TanStack DB, enabling local-first d
 
 ### Configuration
 
-Add `"db"` to your source's `generates` array (requires `"query"` as well):
+Add `"db"` to your source's `generates` array:
 
 ```typescript
 import { defineConfig } from "tangrams";
@@ -919,11 +880,14 @@ export default defineConfig({
       name: "api",
       type: "openapi",
       spec: "./openapi.yaml",
-      generates: ["query", "db"], // Generate query and db collections
+      generates: ["db"], // db auto-enables query
+      // Or explicitly: generates: ["query", "db"]
     },
   ],
 });
 ```
+
+**Note:** When `"db"` is specified, `"query"` is automatically enabled since DB collections depend on the underlying fetch functions.
 
 ### Peer Dependencies
 
@@ -955,15 +919,20 @@ tangrams automatically discovers entities for collection generation:
 
 ### Key Field Detection
 
-By default, tangrams looks for an `id` field (or GraphQL `ID` type) as the key field. Override this per-entity:
+By default, tangrams looks for an `id` field (or GraphQL `ID` type) as the key field. Override this per-entity using the `overrides` option:
 
 ```typescript
-generates: {
-  query: true,
-  db: {
-    collections: {
-      Pet: { keyField: "petId" },
-      User: { keyField: "uuid" },
+{
+  name: "api",
+  type: "openapi",
+  spec: "./openapi.yaml",
+  generates: ["db"],
+  overrides: {
+    db: {
+      collections: {
+        Pet: { keyField: "petId" },
+        User: { keyField: "uuid" },
+      },
     },
   },
 }
@@ -976,11 +945,11 @@ src/generated/
 └── api/
     ├── client.ts
     ├── schema.ts
-    ├── functions.ts       # Standalone functions (when using functions generator)
+    ├── functions.ts       # Auto-generated standalone functions
     ├── query/
-    │   └── operations.ts
+    │   └── operations.ts  # Imports from ../functions.ts
     └── db/
-        └── collections.ts # Imports from ../functions.ts when available
+        └── collections.ts # Imports from ../functions.ts
 ```
 
 #### `<source>/db/collections.ts`
