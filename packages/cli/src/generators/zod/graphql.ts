@@ -64,6 +64,8 @@ interface GraphQLZodContext extends ZodGenContext {
 export interface GraphQLZodOptions {
   /** Custom scalar to Zod mappings (e.g., { DateTime: "z.string()" }) */
   scalars?: Record<string, string>;
+  /** Generate operation variables schemas (for form generation) */
+  includeOperationVariables?: boolean;
 }
 
 /**
@@ -108,6 +110,11 @@ export function generateGraphQLZodSchemas(
 
   // Process any pending schemas (dependencies)
   processPendingSchemas(ctx);
+
+  // Generate operation variables schemas if requested (for form generation)
+  if (options.includeOperationVariables) {
+    generateOperationVariablesSchemas(operations, ctx);
+  }
 
   return {
     content: buildZodOutput(ctx),
@@ -379,5 +386,101 @@ function graphqlTypeToZod(
   }
 
   ctx.warnings.push("Unsupported GraphQL type");
+  return "z.unknown()";
+}
+
+/**
+ * Generate Zod schemas for operation variables (used by form generation)
+ * Creates schemas like `createPetVariablesSchema` that wrap the input type schemas
+ */
+function generateOperationVariablesSchemas(
+  operations: ParsedDocuments["operations"],
+  ctx: GraphQLZodContext,
+): void {
+  for (const operation of operations) {
+    const variables = operation.node.variableDefinitions ?? [];
+    if (variables.length === 0) continue;
+
+    const variablesSchemaName = `${operation.name}Variables`;
+
+    // Skip if already generated
+    if (ctx.generatedSchemas.has(variablesSchemaName)) continue;
+
+    // Build the variables schema
+    const fieldDefs: string[] = [];
+
+    for (const varDef of variables) {
+      const varName = varDef.variable.name.value;
+      const zodType = astTypeToZod(varDef.type, ctx);
+      const isRequired = varDef.type.kind === "NonNullType";
+
+      if (isRequired) {
+        fieldDefs.push(`  ${varName}: ${zodType}`);
+      } else {
+        fieldDefs.push(`  ${varName}: ${zodType}.optional()`);
+      }
+    }
+
+    const zodSchema = `z.object({\n${fieldDefs.join(",\n")}\n})`;
+    addSchemaToContext(ctx, variablesSchemaName, zodSchema);
+  }
+}
+
+/**
+ * Convert a GraphQL AST type node to a Zod type string
+ */
+function astTypeToZod(
+  typeNode: { kind: string; type?: unknown; name?: { value: string } },
+  ctx: GraphQLZodContext,
+): string {
+  // Handle NonNull wrapper
+  if (typeNode.kind === "NonNullType" && typeNode.type) {
+    return astTypeToZod(
+      typeNode.type as {
+        kind: string;
+        type?: unknown;
+        name?: { value: string };
+      },
+      ctx,
+    );
+  }
+
+  // Handle List wrapper
+  if (typeNode.kind === "ListType" && typeNode.type) {
+    const innerType = astTypeToZod(
+      typeNode.type as {
+        kind: string;
+        type?: unknown;
+        name?: { value: string };
+      },
+      ctx,
+    );
+    return `z.array(${innerType}).nullable()`;
+  }
+
+  // Handle named type
+  if (typeNode.kind === "NamedType" && typeNode.name?.value) {
+    const typeName = typeNode.name.value;
+    const schemaType = ctx.schema.getType(typeName);
+
+    if (!schemaType) {
+      ctx.warnings.push(`Unknown type "${typeName}" in operation variables`);
+      return "z.unknown()";
+    }
+
+    // Scalars
+    if (isScalarType(schemaType)) {
+      const zodType = ctx.scalarMappings[typeName];
+      if (zodType) return zodType;
+      ctx.warnings.push(
+        `Unknown scalar type "${typeName}", using z.unknown(). Consider adding a scalar mapping.`,
+      );
+      return "z.unknown()";
+    }
+
+    // Enums and input types - reference the schema
+    return toSchemaName(typeName);
+  }
+
   return "z.unknown()";
 }

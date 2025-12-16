@@ -152,6 +152,7 @@ class GraphQLAdapterImpl implements IGraphQLAdapter {
   ): GeneratedFile {
     const result = generateGraphQLZodSchemas(schema.schema, schema.documents, {
       scalars: options.scalars,
+      includeOperationVariables: options.includeOperationVariables,
     });
 
     return {

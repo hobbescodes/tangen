@@ -1,0 +1,64 @@
+# Basic pet queries using simple filtering
+query GetPets(
+  $status: PetStatus
+  $category: PetCategory
+  $limit: Int
+  $offset: Int
+) {
+  pets(status: $status, category: $category, limit: $limit, offset: $offset) {
+    data {
+      id
+      name
+      status
+      category
+      tags
+      photoUrl
+      createdAt
+      updatedAt
+    }
+    total
+  }
+}
+
+query GetPetById($id: ID!) {
+  pet(id: $id) {
+    id
+    name
+    status
+    category
+    tags
+    photoUrl
+    createdAt
+    updatedAt
+  }
+}
+
+mutation CreatePet($input: CreatePetInput!) {
+  createPet(input: $input) {
+    id
+    name
+    status
+    category
+    tags
+    photoUrl
+    createdAt
+    updatedAt
+  }
+}
+
+mutation UpdatePet($id: ID!, $input: UpdatePetInput!) {
+  updatePet(id: $id, input: $input) {
+    id
+    name
+    status
+    category
+    tags
+    photoUrl
+    createdAt
+    updatedAt
+  }
+}
+
+mutation DeletePet($id: ID!) {
+  deletePet(id: $id)
+}

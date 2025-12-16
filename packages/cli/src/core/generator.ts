@@ -148,10 +148,15 @@ export async function generate(
 
     // Step 2: Generate Zod schemas if needed (at source root)
     if (needsZodSchemas) {
+      // For GraphQL with form generation, include operation variable schemas
+      const includeOperationVariables =
+        source.type === "graphql" && generates.form;
+
       schemaPath = await generateSchemaFile({
         source,
         sourceOutputDir,
         schema,
+        includeOperationVariables,
       });
     }
 
@@ -275,6 +280,8 @@ interface GenerateSchemaFileOptions {
   source: SourceConfig;
   sourceOutputDir: string;
   schema: unknown;
+  /** Include operation variable schemas (for form generation, GraphQL only) */
+  includeOperationVariables?: boolean;
 }
 
 /**
@@ -285,13 +292,15 @@ interface GenerateSchemaFileOptions {
 async function generateSchemaFile(
   options: GenerateSchemaFileOptions,
 ): Promise<string> {
-  const { source, sourceOutputDir, schema } = options;
+  const { source, sourceOutputDir, schema, includeOperationVariables } =
+    options;
 
   consola.info(`Generating Zod schemas for: ${source.name}`);
 
   const adapter = getAdapter(source.type);
   const schemaGenOptions = {
     scalars: getScalarsFromSource(source),
+    includeOperationVariables,
   };
   const result = adapter.generateSchemas(schema, source, schemaGenOptions);
 

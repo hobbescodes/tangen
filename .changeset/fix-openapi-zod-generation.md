@@ -17,3 +17,8 @@ Fix TanStack Form options generation:
 Fix unused type imports in generated functions.ts:
 
 - Only import `*Params` types for GET operations (query functions), since mutation functions use inline types
+
+Fix GraphQL form generation:
+
+- Generate operation variable schemas (e.g., `createPetVariablesSchema`) in schema.ts when form generation is enabled
+- This fixes the missing exports error when forms.ts imports variable schemas from schema.ts
