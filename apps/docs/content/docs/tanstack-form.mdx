@@ -5,7 +5,7 @@ description: Generate formOptions for TanStack Form with Zod validation.
 
 # TanStack Form
 
-Tangrams generates `formOptions` with auto-generated default values and Zod validators from your mutations. These snap right into TanStack Form's `useForm` hook.
+Tangrams generates `formOptions` with Zod validators from your mutations. These snap right into TanStack Form's `useForm` hook.
 
 ## Peer Dependencies
 
@@ -118,79 +118,30 @@ src/generated/
 
 For each mutation with a request body, Tangrams generates a `formOptions` export with:
 
-- **`defaultValues`** - Auto-generated from the Zod schema structure
-- **`validators.onSubmitAsync`** - The Zod schema for validation
+- **`defaultValues`** - Empty object with type assertion for type safety
+- **`validators`** - The Zod schema for validation (configurable timing)
 
 **Example `forms.ts`:**
 
 ```typescript
 import { formOptions } from "@tanstack/react-form"
+
 import { createUserRequestSchema, updateUserRequestSchema } from "../schema"
+import type { CreateUserRequest, UpdateUserRequest } from "../schema"
 
 export const createUserFormOptions = formOptions({
-  defaultValues: {
-    name: "",
-    email: "",
-  },
+  defaultValues: {} as CreateUserRequest,
   validators: {
     onSubmitAsync: createUserRequestSchema,
   },
 })
 
 export const updateUserFormOptions = formOptions({
-  defaultValues: {
-    name: "",
-    email: "",
-    bio: "",
-  },
+  defaultValues: {} as UpdateUserRequest,
   validators: {
     onSubmitAsync: updateUserRequestSchema,
   },
 })
-```
-
-### Default Value Generation
-
-Tangrams automatically generates sensible default values based on your Zod schema types:
-
-| Zod Type | Default Value |
-|----------|---------------|
-| `z.string()` | `""` |
-| `z.number()` | `0` |
-| `z.boolean()` | `false` |
-| `z.array()` | `[]` |
-| `z.object()` | `{ nested defaults }` |
-| `z.enum()` | First enum value |
-| `z.nullable()` | `null` |
-| `z.optional()` | *(excluded from object)* |
-
-**Example:** Given this Zod schema:
-
-```typescript
-const createPostRequestSchema = z.object({
-  title: z.string(),
-  content: z.string(),
-  published: z.boolean(),
-  tags: z.array(z.string()),
-  category: z.enum(["tech", "lifestyle", "news"]),
-  metadata: z.object({
-    author: z.string(),
-    views: z.number(),
-  }).optional(),
-})
-```
-
-Tangrams generates these default values:
-
-```typescript
-defaultValues: {
-  title: "",
-  content: "",
-  published: false,
-  tags: [],
-  category: "tech",
-  // metadata is excluded (optional)
-}
 ```
 
 ## Usage
@@ -298,28 +249,43 @@ function CreateUserForm() {
 }
 ```
 
-### Overriding Default Values
+### Setting Default Values
 
-You can override the generated default values when needed:
+The generated `formOptions` use an empty object with a type assertion for `defaultValues`. You should provide your own default values when using the form:
 
 ```typescript
-const form = useForm({
-  ...createUserFormOptions,
-  defaultValues: {
-    ...createUserFormOptions.defaultValues,
-    name: "Pre-filled Name",
-  },
-  onSubmit: async ({ value }) => {
-    // ...
-  },
-})
+import { useForm } from "@tanstack/react-form"
+import { createUserFormOptions } from "./generated/api/form/forms"
+import type { CreateUserRequest } from "./generated/api/schema"
+
+function CreateUserForm() {
+  const form = useForm({
+    ...createUserFormOptions,
+    defaultValues: {
+      name: "",
+      email: "",
+      role: "user",
+    } satisfies CreateUserRequest,
+    onSubmit: async ({ value }) => {
+      // ...
+    },
+  })
+
+  // ...
+}
 ```
+
+The `satisfies` keyword ensures your default values match the expected type while allowing TypeScript to infer the exact shape.
 
 ### Edit Forms with Existing Data
 
-For edit forms, override `defaultValues` with the existing data:
+For edit forms, populate `defaultValues` with the existing data:
 
 ```typescript
+import { useForm } from "@tanstack/react-form"
+import { updateUserFormOptions } from "./generated/api/form/forms"
+import type { UpdateUserRequest } from "./generated/api/schema"
+
 function EditUserForm({ user }: { user: User }) {
   const form = useForm({
     ...updateUserFormOptions,
@@ -327,7 +293,7 @@ function EditUserForm({ user }: { user: User }) {
       name: user.name,
       email: user.email,
       bio: user.bio ?? "",
-    },
+    } satisfies UpdateUserRequest,
     onSubmit: async ({ value }) => {
       // ...
     },
@@ -338,6 +304,76 @@ function EditUserForm({ user }: { user: User }) {
   )
 }
 ```
+
+## Validator Configuration
+
+By default, Tangrams generates form options with `onSubmitAsync` validation. You can customize the validator timing using the `overrides.form` configuration:
+
+### Available Validators
+
+```typescript
+// tangrams.config.ts
+import { defineConfig } from "tangrams"
+
+export default defineConfig({
+  sources: [
+    {
+      name: "api",
+      type: "openapi",
+      spec: "./openapi.yaml",
+      generates: ["form"],
+      overrides: {
+        form: {
+          // Choose one of:
+          // "onChange"       - Validate on every change (sync)
+          // "onChangeAsync"  - Validate on every change (async)
+          // "onBlur"         - Validate when field loses focus (sync)
+          // "onBlurAsync"    - Validate when field loses focus (async)
+          // "onSubmit"       - Validate on submit (sync)
+          // "onSubmitAsync"  - Validate on submit (async) - DEFAULT
+          // "onDynamic"      - Dynamic validation with revalidation logic
+          validator: "onBlurAsync",
+        },
+      },
+    },
+  ],
+})
+```
+
+### Dynamic Validation
+
+The `onDynamic` validator uses TanStack Form's `revalidateLogic` for smart revalidation. Configure when validation runs initially and after the first submission:
+
+```typescript
+overrides: {
+  form: {
+    validator: "onDynamic",
+    validationLogic: {
+      mode: "submit",                // Initial validation: "change" | "blur" | "submit"
+      modeAfterSubmission: "change", // After first submit: "change" | "blur" | "submit"
+    },
+  },
+}
+```
+
+**Generated output with `onDynamic`:**
+
+```typescript
+import { formOptions, revalidateLogic } from "@tanstack/react-form"
+
+import { createUserRequestSchema } from "../schema"
+import type { CreateUserRequest } from "../schema"
+
+export const createUserFormOptions = formOptions({
+  defaultValues: {} as CreateUserRequest,
+  validationLogic: revalidateLogic({ mode: "submit", modeAfterSubmission: "change" }),
+  validators: {
+    onDynamic: createUserRequestSchema,
+  },
+})
+```
+
+This pattern validates on submit initially, then revalidates on every change after the first submission attempt - a common UX pattern for forms.
 
 ## Configuration Reference
 
@@ -362,4 +398,13 @@ function EditUserForm({ user }: { user: User }) {
 | `exclude` | `string[]` | No | Glob patterns for paths to exclude |
 | `generates` | `array` | Yes | Must include `"form"` |
 
+### Form Overrides
 
+Configure form generation behavior using `overrides.form`:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `validator` | `string` | `"onSubmitAsync"` | Validator timing (see [available validators](#available-validators)) |
+| `validationLogic` | `object` | - | Configuration for `onDynamic` validator only |
+| `validationLogic.mode` | `string` | `"submit"` | Initial validation trigger: `"change"`, `"blur"`, or `"submit"` |
+| `validationLogic.modeAfterSubmission` | `string` | `"change"` | Revalidation trigger after first submit |

@@ -656,7 +656,7 @@ bunx tangrams generate --watch --config ./config/tangrams.config.ts
 
 ## TanStack Form Integration
 
-tangrams can generate `formOptions` for TanStack Form, complete with Zod validation schemas and default values derived from your mutations.
+tangrams can generate `formOptions` for TanStack Form with Zod validation schemas.
 
 ### Configuration
 
@@ -702,17 +702,16 @@ src/generated/
 
 #### `<source>/form/forms.ts`
 
-Ready-to-use `formOptions` with validation and default values:
+Ready-to-use `formOptions` with Zod validation:
 
 ```typescript
 import { formOptions } from "@tanstack/react-form";
+
 import { createUserRequestSchema } from "../schema";
+import type { CreateUserRequest } from "../schema";
 
 export const createUserFormOptions = formOptions({
-  defaultValues: {
-    name: "",
-    email: "",
-  },
+  defaultValues: {} as CreateUserRequest,
   validators: {
     onSubmitAsync: createUserRequestSchema,
   },
@@ -721,17 +720,22 @@ export const createUserFormOptions = formOptions({
 
 ### Usage
 
-Use the generated form options with TanStack Form:
+Use the generated form options with TanStack Form. Provide your own `defaultValues` for type-safe form initialization:
 
 ```typescript
 import { useForm } from "@tanstack/react-form";
 import { createUserFormOptions } from "./generated/api/form/forms";
+import type { CreateUserRequest } from "./generated/api/schema";
 
 function CreateUserForm() {
   const form = useForm({
     ...createUserFormOptions,
+    defaultValues: {
+      name: "",
+      email: "",
+    } satisfies CreateUserRequest,
     onSubmit: async ({ value }) => {
-      // value is fully typed as CreateUserInput
+      // value is fully typed as CreateUserRequest
       await api.createUser(value);
     },
   });

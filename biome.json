@@ -38,7 +38,8 @@
       "!!.changeset",
       "!!**/test/fixtures/graphql/anonymous.graphql",
       "!!apps/docs/.source",
-      "!!**/*/*.gen.ts"
+      "!!**/*/*.gen.ts",
+      "!!**/*/mockServiceWorker.js"
     ]
   },
   "formatter": {
