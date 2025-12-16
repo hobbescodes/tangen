@@ -675,35 +675,41 @@ describe("utility functions", () => {
 
   describe("sourceGeneratesQuery", () => {
     it("returns true for array with query", () => {
-      const source = multiSourceConfig.sources[0]!;
-      expect(sourceGeneratesQuery(source)).toBe(true);
+      const source = multiSourceConfig.sources[0];
+      expect(source).toBeDefined();
+      if (source) expect(sourceGeneratesQuery(source)).toBe(true);
     });
 
     it("returns true for array with query and form", () => {
-      const source = multiSourceConfig.sources[1]!;
-      expect(sourceGeneratesQuery(source)).toBe(true);
+      const source = multiSourceConfig.sources[1];
+      expect(source).toBeDefined();
+      if (source) expect(sourceGeneratesQuery(source)).toBe(true);
     });
 
     it("returns false for object without query", () => {
-      const source = multiSourceConfig.sources[2]!;
-      expect(sourceGeneratesQuery(source)).toBe(false);
+      const source = multiSourceConfig.sources[2];
+      expect(source).toBeDefined();
+      if (source) expect(sourceGeneratesQuery(source)).toBe(false);
     });
   });
 
   describe("sourceGeneratesForm", () => {
     it("returns false for array without form", () => {
-      const source = multiSourceConfig.sources[0]!;
-      expect(sourceGeneratesForm(source)).toBe(false);
+      const source = multiSourceConfig.sources[0];
+      expect(source).toBeDefined();
+      if (source) expect(sourceGeneratesForm(source)).toBe(false);
     });
 
     it("returns true for array with form", () => {
-      const source = multiSourceConfig.sources[1]!;
-      expect(sourceGeneratesForm(source)).toBe(true);
+      const source = multiSourceConfig.sources[1];
+      expect(source).toBeDefined();
+      if (source) expect(sourceGeneratesForm(source)).toBe(true);
     });
 
     it("returns true for object with form", () => {
-      const source = multiSourceConfig.sources[2]!;
-      expect(sourceGeneratesForm(source)).toBe(true);
+      const source = multiSourceConfig.sources[2];
+      expect(source).toBeDefined();
+      if (source) expect(sourceGeneratesForm(source)).toBe(true);
     });
   });
 
@@ -884,10 +890,13 @@ describe("loadTangramsConfig", () => {
     const source = result.config.sources[0];
     expect(source?.generates).toEqual(["query", "form"]);
     // normalizeGenerates returns simple booleans
-    const normalized = normalizeGenerates(source!.generates);
-    expect(normalized.query).toBe(true);
-    expect(normalized.form).toBe(true);
-    expect(normalized.db).toBe(false);
+    expect(source).toBeDefined();
+    if (source) {
+      const normalized = normalizeGenerates(source.generates);
+      expect(normalized.query).toBe(true);
+      expect(normalized.form).toBe(true);
+      expect(normalized.db).toBe(false);
+    }
   });
 });
 

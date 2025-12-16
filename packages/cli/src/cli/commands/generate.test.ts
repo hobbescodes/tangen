@@ -232,11 +232,14 @@ describe("generate command logic", () => {
       expect(result.success).toBe(true);
       if (result.success) {
         const source = result.data.sources[0];
+        expect(source).toBeDefined();
         expect(source?.generates).toEqual(["query", "form", "db"]);
-        const normalized = normalizeGenerates(source!.generates);
-        expect(normalized.query).toBe(true);
-        expect(normalized.form).toBe(true);
-        expect(normalized.db).toBe(true);
+        if (source) {
+          const normalized = normalizeGenerates(source.generates);
+          expect(normalized.query).toBe(true);
+          expect(normalized.form).toBe(true);
+          expect(normalized.db).toBe(true);
+        }
       }
     });
   });

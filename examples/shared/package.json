@@ -1,0 +1,21 @@
+{
+  "name": "@examples/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./mocks": "./mocks/index.ts",
+    "./mocks/node": "./mocks/node.ts",
+    "./mocks/data": "./mocks/data/index.ts",
+    "./mocks/handlers": "./mocks/handlers/index.ts",
+    "./mocks/handlers/rest": "./mocks/handlers/rest.ts",
+    "./mocks/handlers/graphql": "./mocks/handlers/graphql.ts"
+  },
+  "dependencies": {
+    "msw": "^2.7.0",
+    "graphql": "^16.10.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

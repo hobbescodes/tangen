@@ -2,7 +2,7 @@
  * Tests for GraphQL argument analysis
  */
 
-import { buildSchema } from "graphql";
+import { buildSchema, isInputObjectType } from "graphql";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -348,11 +348,11 @@ describe("GraphQL Analysis", () => {
 				}
 			`);
       const type = schema.getType("TestFilter");
-      if (!type || type.astNode?.kind !== "InputObjectTypeDefinition") {
+      if (!isInputObjectType(type)) {
         throw new Error("Expected input type");
       }
 
-      const result = detectFilterStyle(type as any);
+      const result = detectFilterStyle(type);
       expect(result).toBe("hasura");
     });
 
@@ -365,8 +365,11 @@ describe("GraphQL Analysis", () => {
 				}
 			`);
       const type = schema.getType("TestFilter");
+      if (!isInputObjectType(type)) {
+        throw new Error("Expected input type");
+      }
 
-      const result = detectFilterStyle(type as any);
+      const result = detectFilterStyle(type);
       expect(result).toBe("prisma");
     });
 
@@ -378,8 +381,11 @@ describe("GraphQL Analysis", () => {
 				}
 			`);
       const type = schema.getType("TestFilter");
+      if (!isInputObjectType(type)) {
+        throw new Error("Expected input type");
+      }
 
-      const result = detectFilterStyle(type as any);
+      const result = detectFilterStyle(type);
       expect(result).toBe("custom");
     });
   });

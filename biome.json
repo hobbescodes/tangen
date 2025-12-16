@@ -38,7 +38,7 @@
       "!!.changeset",
       "!!**/test/fixtures/graphql/anonymous.graphql",
       "!!apps/docs/.source",
-      "!!apps/docs/src/routeTree.gen.ts"
+      "!!**/*/*.gen.ts"
     ]
   },
   "formatter": {

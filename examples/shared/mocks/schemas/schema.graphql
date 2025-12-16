@@ -1,0 +1,254 @@
+"""
+Pet Store GraphQL Schema
+Includes Hasura-style filtering for TanStack DB examples
+""" # Enums
+enum PetStatus {
+  available
+  pending
+  sold
+}
+
+enum PetCategory {
+  dog
+  cat
+  bird
+  fish
+  reptile
+}
+
+enum UserRole {
+  admin
+  user
+  guest
+}
+
+enum OrderBy {
+  asc
+  desc
+}
+
+# Core Types
+type Pet {
+  id: ID!
+  name: String!
+  category: PetCategory!
+  status: PetStatus!
+  tags: [String!]!
+  photoUrl: String
+  createdAt: String!
+  updatedAt: String!
+}
+
+type User {
+  id: ID!
+  email: String!
+  name: String!
+  role: UserRole!
+  createdAt: String!
+  updatedAt: String!
+}
+
+# Pagination
+type PetConnection {
+  data: [Pet!]!
+  total: Int!
+}
+
+type UserConnection {
+  data: [User!]!
+  total: Int!
+}
+
+# Input Types for Mutations
+input CreatePetInput {
+  name: String!
+  category: PetCategory!
+  status: PetStatus!
+  tags: [String!]!
+  photoUrl: String
+}
+
+input UpdatePetInput {
+  name: String
+  category: PetCategory
+  status: PetStatus
+  tags: [String!]
+  photoUrl: String
+}
+
+input CreateUserInput {
+  email: String!
+  name: String!
+  role: UserRole!
+}
+
+input UpdateUserInput {
+  email: String
+  name: String
+  role: UserRole
+}
+
+# Hasura-style Filtering Types
+# These are used for TanStack DB on-demand sync
+
+input String_comparison_exp {
+  _eq: String
+  _neq: String
+  _in: [String!]
+  _nin: [String!]
+  _like: String
+  _ilike: String
+  _is_null: Boolean
+}
+
+input Int_comparison_exp {
+  _eq: Int
+  _neq: Int
+  _gt: Int
+  _gte: Int
+  _lt: Int
+  _lte: Int
+  _in: [Int!]
+  _nin: [Int!]
+  _is_null: Boolean
+}
+
+input PetStatus_comparison_exp {
+  _eq: PetStatus
+  _neq: PetStatus
+  _in: [PetStatus!]
+  _nin: [PetStatus!]
+}
+
+input PetCategory_comparison_exp {
+  _eq: PetCategory
+  _neq: PetCategory
+  _in: [PetCategory!]
+  _nin: [PetCategory!]
+}
+
+input UserRole_comparison_exp {
+  _eq: UserRole
+  _neq: UserRole
+  _in: [UserRole!]
+  _nin: [UserRole!]
+}
+
+input Pet_bool_exp {
+  _and: [Pet_bool_exp!]
+  _or: [Pet_bool_exp!]
+  _not: Pet_bool_exp
+  id: String_comparison_exp
+  name: String_comparison_exp
+  category: PetCategory_comparison_exp
+  status: PetStatus_comparison_exp
+}
+
+input User_bool_exp {
+  _and: [User_bool_exp!]
+  _or: [User_bool_exp!]
+  _not: User_bool_exp
+  id: String_comparison_exp
+  email: String_comparison_exp
+  name: String_comparison_exp
+  role: UserRole_comparison_exp
+}
+
+input Pet_order_by {
+  id: OrderBy
+  name: OrderBy
+  category: OrderBy
+  status: OrderBy
+  createdAt: OrderBy
+  updatedAt: OrderBy
+}
+
+input User_order_by {
+  id: OrderBy
+  email: OrderBy
+  name: OrderBy
+  role: OrderBy
+  createdAt: OrderBy
+  updatedAt: OrderBy
+}
+
+# Queries
+type Query {
+  """
+  Get a single pet by ID
+  """
+  pet(id: ID!): Pet
+
+  """
+  List all pets with optional filtering
+  """
+  pets(
+    status: PetStatus
+    category: PetCategory
+    limit: Int = 20
+    offset: Int = 0
+  ): PetConnection!
+
+  """
+  List pets with Hasura-style filtering (for TanStack DB)
+  """
+  pets_filtered(
+    where: Pet_bool_exp
+    order_by: [Pet_order_by!]
+    limit: Int = 20
+    offset: Int = 0
+  ): PetConnection!
+
+  """
+  Get a single user by ID
+  """
+  user(id: ID!): User
+
+  """
+  List all users with optional filtering
+  """
+  users(role: UserRole, limit: Int = 20, offset: Int = 0): UserConnection!
+
+  """
+  List users with Hasura-style filtering (for TanStack DB)
+  """
+  users_filtered(
+    where: User_bool_exp
+    order_by: [User_order_by!]
+    limit: Int = 20
+    offset: Int = 0
+  ): UserConnection!
+}
+
+# Mutations
+type Mutation {
+  """
+  Create a new pet
+  """
+  createPet(input: CreatePetInput!): Pet!
+
+  """
+  Update an existing pet
+  """
+  updatePet(id: ID!, input: UpdatePetInput!): Pet
+
+  """
+  Delete a pet
+  """
+  deletePet(id: ID!): Boolean!
+
+  """
+  Create a new user
+  """
+  createUser(input: CreateUserInput!): User!
+
+  """
+  Update an existing user
+  """
+  updateUser(id: ID!, input: UpdateUserInput!): User
+
+  """
+  Delete a user
+  """
+  deleteUser(id: ID!): Boolean!
+}
