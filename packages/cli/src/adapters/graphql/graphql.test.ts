@@ -830,4 +830,153 @@ describe("GraphQL Collection Discovery", () => {
       expect(result.content).toContain("createCollection(");
     });
   });
+
+  describe("on-demand mode collection generation", () => {
+    const hasuraConfig: GraphQLSourceConfig = {
+      name: "hasura-api",
+      type: "graphql",
+      schema: { file: join(fixturesDir, "hasura-style-schema.graphql") },
+      documents: join(fixturesDir, "hasura-style-operations.graphql"),
+      generates: ["query", "db"],
+    };
+
+    it("discovers filter capabilities from Hasura-style schema", async () => {
+      const schema = await graphqlAdapter.loadSchema(hasuraConfig);
+      const result = graphqlAdapter.discoverCollectionEntities(
+        schema,
+        hasuraConfig,
+      );
+
+      const productEntity = result.entities.find((e) => e.name === "Product");
+      expect(productEntity).toBeDefined();
+      expect(productEntity?.filterCapabilities).toBeDefined();
+      expect(productEntity?.filterCapabilities?.hasFiltering).toBe(true);
+      expect(productEntity?.filterCapabilities?.filterStyle).toBe("hasura");
+    });
+
+    it("discovers sort capabilities from Hasura-style schema", async () => {
+      const schema = await graphqlAdapter.loadSchema(hasuraConfig);
+      const result = graphqlAdapter.discoverCollectionEntities(
+        schema,
+        hasuraConfig,
+      );
+
+      const productEntity = result.entities.find((e) => e.name === "Product");
+      expect(productEntity?.sortCapabilities).toBeDefined();
+      expect(productEntity?.sortCapabilities?.hasSorting).toBe(true);
+      expect(productEntity?.sortCapabilities?.sortParam).toBe("order_by");
+    });
+
+    it("discovers pagination capabilities from Hasura-style schema", async () => {
+      const schema = await graphqlAdapter.loadSchema(hasuraConfig);
+      const result = graphqlAdapter.discoverCollectionEntities(
+        schema,
+        hasuraConfig,
+      );
+
+      const productEntity = result.entities.find((e) => e.name === "Product");
+      expect(productEntity?.paginationCapabilities).toBeDefined();
+      expect(productEntity?.paginationCapabilities?.style).toBe("offset");
+      expect(productEntity?.paginationCapabilities?.limitParam).toBe("limit");
+      expect(productEntity?.paginationCapabilities?.offsetParam).toBe("offset");
+    });
+
+    it("applies syncMode override from config", async () => {
+      const schema = await graphqlAdapter.loadSchema(hasuraConfig);
+      const result = graphqlAdapter.discoverCollectionEntities(
+        schema,
+        hasuraConfig,
+        {
+          Product: { syncMode: "on-demand" },
+        },
+      );
+
+      const productEntity = result.entities.find((e) => e.name === "Product");
+      expect(productEntity?.syncMode).toBe("on-demand");
+    });
+
+    it("applies predicateMapping override from config", async () => {
+      const schema = await graphqlAdapter.loadSchema(hasuraConfig);
+      const result = graphqlAdapter.discoverCollectionEntities(
+        schema,
+        hasuraConfig,
+        {
+          Product: { predicateMapping: "prisma" },
+        },
+      );
+
+      const productEntity = result.entities.find((e) => e.name === "Product");
+      expect(productEntity?.predicateMapping).toBe("prisma");
+    });
+
+    it("generates on-demand collection with predicate translator", async () => {
+      const schema = await graphqlAdapter.loadSchema(hasuraConfig);
+      const result = graphqlAdapter.generateCollections(schema, hasuraConfig, {
+        typesImportPath: "./types",
+        sourceName: "hasura-api",
+        collectionOverrides: {
+          Product: { syncMode: "on-demand" },
+        },
+      });
+
+      // Should import predicate utilities
+      expect(result.content).toContain("parseLoadSubsetOptions");
+      expect(result.content).toContain("LoadSubsetOptions");
+
+      // Should generate translator function
+      expect(result.content).toContain("function translateProductPredicates");
+
+      // Should set syncMode
+      expect(result.content).toContain('syncMode: "on-demand"');
+
+      // Should use translator in queryFn
+      expect(result.content).toContain("ctx.meta?.loadSubsetOptions");
+      expect(result.content).toContain("translateProductPredicates");
+    });
+
+    it("generates hasura predicate translator by default", async () => {
+      const schema = await graphqlAdapter.loadSchema(hasuraConfig);
+      const result = graphqlAdapter.generateCollections(schema, hasuraConfig, {
+        typesImportPath: "./types",
+        sourceName: "hasura-api",
+        collectionOverrides: {
+          Product: { syncMode: "on-demand" },
+        },
+      });
+
+      // Should have Hasura style filter handling
+      expect(result.content).toContain("Hasura GraphQL variables");
+      expect(result.content).toContain("_eq: filter.value");
+      expect(result.content).toContain("_and: whereConditions");
+    });
+
+    it("generates prisma predicate translator when configured", async () => {
+      const schema = await graphqlAdapter.loadSchema(hasuraConfig);
+      const result = graphqlAdapter.generateCollections(schema, hasuraConfig, {
+        typesImportPath: "./types",
+        sourceName: "hasura-api",
+        collectionOverrides: {
+          Product: { syncMode: "on-demand", predicateMapping: "prisma" },
+        },
+      });
+
+      // Should have Prisma style filter handling
+      expect(result.content).toContain("Prisma GraphQL variables");
+      expect(result.content).toContain("equals: filter.value");
+      expect(result.content).toContain("AND: whereConditions");
+    });
+
+    it("does not generate predicate translator for full sync mode", async () => {
+      const schema = await graphqlAdapter.loadSchema(hasuraConfig);
+      const result = graphqlAdapter.generateCollections(schema, hasuraConfig, {
+        typesImportPath: "./types",
+        sourceName: "hasura-api",
+      });
+
+      // Should NOT have predicate imports or translator
+      expect(result.content).not.toContain("parseLoadSubsetOptions");
+      expect(result.content).not.toContain("translateProductPredicates");
+      expect(result.content).not.toContain('syncMode: "on-demand"');
+    });
+  });
 });

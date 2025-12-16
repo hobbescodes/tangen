@@ -25,7 +25,10 @@ import {
 import { generateGraphQLTypes } from "./types";
 
 import type { GraphQLSchema } from "graphql";
-import type { GraphQLSourceConfig } from "@/core/config";
+import type {
+  CollectionOverrideConfig,
+  GraphQLSourceConfig,
+} from "@/core/config";
 import type {
   CollectionDiscoveryResult,
   CollectionGenOptions,
@@ -254,7 +257,7 @@ class GraphQLAdapterImpl implements IGraphQLAdapter {
   discoverCollectionEntities(
     schema: GraphQLAdapterSchema,
     _config: GraphQLSourceConfig,
-    overrides?: Record<string, { keyField?: string }>,
+    overrides?: Record<string, CollectionOverrideConfig>,
   ): CollectionDiscoveryResult {
     return discoverGraphQLEntities(schema, overrides);
   }

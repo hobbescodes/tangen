@@ -1,0 +1,99 @@
+# Schema with Hasura-style filtering
+
+type Query {
+  products(
+    where: products_bool_exp
+    order_by: [products_order_by!]
+    limit: Int
+    offset: Int
+  ): [Product!]!
+
+  product(id: ID!): Product
+}
+
+input products_bool_exp {
+  _and: [products_bool_exp!]
+  _or: [products_bool_exp!]
+  _not: products_bool_exp
+  id: Int_comparison_exp
+  name: String_comparison_exp
+  price: Float_comparison_exp
+  category: String_comparison_exp
+}
+
+input Int_comparison_exp {
+  _eq: Int
+  _neq: Int
+  _gt: Int
+  _gte: Int
+  _lt: Int
+  _lte: Int
+  _in: [Int!]
+  _nin: [Int!]
+}
+
+input String_comparison_exp {
+  _eq: String
+  _neq: String
+  _like: String
+  _ilike: String
+  _in: [String!]
+  _nin: [String!]
+}
+
+input Float_comparison_exp {
+  _eq: Float
+  _neq: Float
+  _gt: Float
+  _gte: Float
+  _lt: Float
+  _lte: Float
+}
+
+input products_order_by {
+  id: order_by
+  name: order_by
+  price: order_by
+  category: order_by
+}
+
+enum order_by {
+  asc
+  desc
+  asc_nulls_first
+  asc_nulls_last
+  desc_nulls_first
+  desc_nulls_last
+}
+
+type Product {
+  id: ID!
+  name: String!
+  price: Float!
+  category: String!
+}
+
+type Mutation {
+  insert_products_one(object: products_insert_input!): Product
+  update_products_by_pk(
+    pk_columns: products_pk_columns_input!
+    _set: products_set_input
+  ): Product
+  delete_products_by_pk(id: Int!): Product
+}
+
+input products_insert_input {
+  name: String!
+  price: Float!
+  category: String!
+}
+
+input products_pk_columns_input {
+  id: Int!
+}
+
+input products_set_input {
+  name: String
+  price: Float
+  category: String
+}

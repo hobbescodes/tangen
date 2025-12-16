@@ -1804,4 +1804,184 @@ describe("OpenAPI Collection Discovery", () => {
       expect(result.content).toContain("createCollection(");
     });
   });
+
+  describe("on-demand mode collection generation", () => {
+    const filterableConfig: OpenAPISourceConfig = {
+      name: "filterable",
+      type: "openapi",
+      spec: join(fixturesDir, "rest-filterable.json"),
+      generates: ["query", "db"],
+    };
+
+    it("discovers filter capabilities from query parameters", async () => {
+      const schema = await openapiAdapter.loadSchema(filterableConfig);
+      const result = openapiAdapter.discoverCollectionEntities(
+        schema,
+        filterableConfig,
+      );
+
+      const productEntity = result.entities.find((e) => e.name === "Product");
+      expect(productEntity).toBeDefined();
+      expect(productEntity?.filterCapabilities).toBeDefined();
+      expect(productEntity?.filterCapabilities?.hasFiltering).toBe(true);
+      expect(productEntity?.filterCapabilities?.filterStyle).toBe(
+        "rest-simple",
+      );
+    });
+
+    it("discovers sort capabilities from query parameters", async () => {
+      const schema = await openapiAdapter.loadSchema(filterableConfig);
+      const result = openapiAdapter.discoverCollectionEntities(
+        schema,
+        filterableConfig,
+      );
+
+      const productEntity = result.entities.find((e) => e.name === "Product");
+      expect(productEntity?.sortCapabilities).toBeDefined();
+      expect(productEntity?.sortCapabilities?.hasSorting).toBe(true);
+      expect(productEntity?.sortCapabilities?.sortParam).toBe("sort");
+    });
+
+    it("discovers pagination capabilities from query parameters", async () => {
+      const schema = await openapiAdapter.loadSchema(filterableConfig);
+      const result = openapiAdapter.discoverCollectionEntities(
+        schema,
+        filterableConfig,
+      );
+
+      const productEntity = result.entities.find((e) => e.name === "Product");
+      expect(productEntity?.paginationCapabilities).toBeDefined();
+      expect(productEntity?.paginationCapabilities?.style).toBe("offset");
+      expect(productEntity?.paginationCapabilities?.limitParam).toBe("limit");
+      expect(productEntity?.paginationCapabilities?.offsetParam).toBe("offset");
+    });
+
+    it("applies syncMode override from config", async () => {
+      const schema = await openapiAdapter.loadSchema(filterableConfig);
+      const result = openapiAdapter.discoverCollectionEntities(
+        schema,
+        filterableConfig,
+        {
+          Product: { syncMode: "on-demand" },
+        },
+      );
+
+      const productEntity = result.entities.find((e) => e.name === "Product");
+      expect(productEntity?.syncMode).toBe("on-demand");
+    });
+
+    it("applies predicateMapping override from config", async () => {
+      const schema = await openapiAdapter.loadSchema(filterableConfig);
+      const result = openapiAdapter.discoverCollectionEntities(
+        schema,
+        filterableConfig,
+        {
+          Product: { predicateMapping: "jsonapi" },
+        },
+      );
+
+      const productEntity = result.entities.find((e) => e.name === "Product");
+      expect(productEntity?.predicateMapping).toBe("jsonapi");
+    });
+
+    it("generates on-demand collection with predicate translator", async () => {
+      const schema = await openapiAdapter.loadSchema(filterableConfig);
+      const result = openapiAdapter.generateCollections(
+        schema,
+        filterableConfig,
+        {
+          typesImportPath: "./schema",
+          sourceName: "filterable",
+          collectionOverrides: {
+            Product: { syncMode: "on-demand" },
+          },
+        },
+      );
+
+      // Should import predicate utilities
+      expect(result.content).toContain("parseLoadSubsetOptions");
+      expect(result.content).toContain("LoadSubsetOptions");
+
+      // Should generate translator function
+      expect(result.content).toContain("function translateProductPredicates");
+
+      // Should set syncMode
+      expect(result.content).toContain('syncMode: "on-demand"');
+
+      // Should use translator in queryFn
+      expect(result.content).toContain("ctx.meta?.loadSubsetOptions");
+      expect(result.content).toContain("translateProductPredicates");
+    });
+
+    it("generates rest-simple predicate translator by default", async () => {
+      const schema = await openapiAdapter.loadSchema(filterableConfig);
+      const result = openapiAdapter.generateCollections(
+        schema,
+        filterableConfig,
+        {
+          typesImportPath: "./schema",
+          sourceName: "filterable",
+          collectionOverrides: {
+            Product: { syncMode: "on-demand" },
+          },
+        },
+      );
+
+      // Should have rest-simple style filter handling
+      expect(result.content).toContain("params[fieldName] = filter.value");
+      expect(result.content).toContain("fieldName}_lt");
+    });
+
+    it("generates jsonapi predicate translator when configured", async () => {
+      const schema = await openapiAdapter.loadSchema(filterableConfig);
+      const result = openapiAdapter.generateCollections(
+        schema,
+        filterableConfig,
+        {
+          typesImportPath: "./schema",
+          sourceName: "filterable",
+          collectionOverrides: {
+            Product: { syncMode: "on-demand", predicateMapping: "jsonapi" },
+          },
+        },
+      );
+
+      // Should have JSON:API style filter handling
+      expect(result.content).toContain("JSON:API query parameters");
+      expect(result.content).toContain("filter[");
+    });
+
+    it("does not generate predicate translator for full sync mode", async () => {
+      const schema = await openapiAdapter.loadSchema(filterableConfig);
+      const result = openapiAdapter.generateCollections(
+        schema,
+        filterableConfig,
+        {
+          typesImportPath: "./schema",
+          sourceName: "filterable",
+        },
+      );
+
+      // Should NOT have predicate imports or translator
+      expect(result.content).not.toContain("parseLoadSubsetOptions");
+      expect(result.content).not.toContain("translateProductPredicates");
+      expect(result.content).not.toContain('syncMode: "on-demand"');
+    });
+
+    it("does not warn when on-demand mode configured and pagination capabilities exist", async () => {
+      // Petstore has limit/offset params, so it has pagination capabilities
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.discoverCollectionEntities(schema, config, {
+        Pet: { syncMode: "on-demand" },
+      });
+
+      // Should NOT have a warning since pagination params exist
+      expect(
+        result.warnings.some(
+          (w) =>
+            w.includes("on-demand") && w.includes("no filtering parameters"),
+        ),
+      ).toBe(false);
+    });
+  });
 });

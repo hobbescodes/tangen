@@ -19,7 +19,10 @@ import { generateOpenAPIFunctions } from "./functions";
 import { generateOpenAPIOperations } from "./operations";
 import { extractOperations, loadOpenAPISpec } from "./schema";
 
-import type { OpenAPISourceConfig } from "@/core/config";
+import type {
+  CollectionOverrideConfig,
+  OpenAPISourceConfig,
+} from "@/core/config";
 import type {
   CollectionDiscoveryResult,
   CollectionGenOptions,
@@ -162,7 +165,7 @@ class OpenAPIAdapterImpl implements IOpenAPIAdapter {
   discoverCollectionEntities(
     schema: OpenAPIAdapterSchema,
     _config: OpenAPISourceConfig,
-    overrides?: Record<string, { keyField?: string }>,
+    overrides?: Record<string, CollectionOverrideConfig>,
   ): CollectionDiscoveryResult {
     const operations = extractOperations(schema.document);
     return discoverOpenAPIEntities(schema, operations, overrides);
