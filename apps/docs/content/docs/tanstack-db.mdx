@@ -400,3 +400,190 @@ This generates:
 - `form/forms.ts` - Form options with Zod validation
 
 Note: `"db"` automatically enables `"query"`, so you don't need to specify both.
+
+## On-Demand Sync Mode
+
+By default, collections use **full sync mode** where all data is fetched from the server and filtering happens client-side. For large datasets or APIs that support server-side filtering, you can enable **on-demand sync mode** to push predicates to the server.
+
+### Configuring On-Demand Mode
+
+Enable on-demand sync for specific collections using the `overrides.db.collections` config:
+
+```typescript
+import { defineConfig } from "tangrams"
+
+export default defineConfig({
+  sources: [
+    {
+      name: "api",
+      type: "openapi",
+      spec: "./openapi.yaml",
+      generates: ["db"],
+      overrides: {
+        db: {
+          collections: {
+            Product: {
+              syncMode: "on-demand",
+              predicateMapping: "rest-simple", // Optional: auto-detected by default
+            },
+          },
+        },
+      },
+    },
+  ],
+})
+```
+
+### Predicate Mapping Presets
+
+Tangrams supports several predicate mapping presets that translate TanStack DB predicates to API-specific formats:
+
+#### REST Simple (OpenAPI default)
+
+Maps predicates to URL query parameters like `field=value`, `field_lt=value`, `sort=field:direction`:
+
+```typescript
+predicateMapping: "rest-simple"
+```
+
+Generated translator output:
+```typescript
+// Input: { field: "price", operator: "lt", value: 100 }
+// Output: { price_lt: 100 }
+
+// Input: { field: "category", operator: "eq", value: "electronics" }
+// Output: { category: "electronics" }
+```
+
+#### JSON:API (OpenAPI)
+
+Maps predicates to JSON:API style parameters like `filter[field]`, `filter[field][op]`, `sort=-field`:
+
+```typescript
+predicateMapping: "jsonapi"
+```
+
+Generated translator output:
+```typescript
+// Input: { field: "price", operator: "lt", value: 100 }
+// Output: { "filter[price][lt]": 100 }
+
+// Input: { field: "category", operator: "eq", value: "electronics" }
+// Output: { "filter[category]": "electronics" }
+```
+
+#### Hasura (GraphQL default)
+
+Maps predicates to Hasura-style GraphQL variables with `where: { field: { _eq: value } }`:
+
+```typescript
+predicateMapping: "hasura"
+```
+
+Generated translator output:
+```typescript
+// Input: { field: "price", operator: "lt", value: 100 }
+// Output: { where: { price: { _lt: 100 } } }
+
+// Input: { field: "category", operator: "eq", value: "electronics" }
+// Output: { where: { category: { _eq: "electronics" } } }
+```
+
+#### Prisma (GraphQL)
+
+Maps predicates to Prisma-style GraphQL variables with `where: { field: { equals: value } }`:
+
+```typescript
+predicateMapping: "prisma"
+```
+
+Generated translator output:
+```typescript
+// Input: { field: "price", operator: "lt", value: 100 }
+// Output: { where: { price: { lt: 100 } } }
+
+// Input: { field: "category", operator: "eq", value: "electronics" }
+// Output: { where: { category: { equals: "electronics" } } }
+```
+
+### Auto-Detection
+
+Tangrams automatically detects the appropriate predicate mapping preset by analyzing your API schema:
+
+- **OpenAPI**: Analyzes query parameter patterns (e.g., `field_lt`, `filter[field]`)
+- **GraphQL**: Analyzes input types for Hasura-style (`*_bool_exp`) or Prisma-style (`*WhereInput`) patterns
+
+You only need to specify `predicateMapping` if you want to override the auto-detected preset.
+
+### Generated On-Demand Collection
+
+When on-demand mode is enabled, the generated collection includes a predicate translator function:
+
+```typescript
+import { parseLoadSubsetOptions } from "@tanstack/query-db-collection"
+import type { LoadSubsetOptions } from "@tanstack/query-db-collection"
+
+function translateProductPredicates(
+  options?: LoadSubsetOptions
+): Partial<ListProductsParams> {
+  if (!options) return {}
+
+  const parsed = parseLoadSubsetOptions(options)
+  const params: Record<string, unknown> = {}
+
+  for (const filter of parsed.filters) {
+    const fieldName = filter.field.join(".")
+    switch (filter.operator) {
+      case "eq":
+        params[fieldName] = filter.value
+        break
+      case "lt":
+        params[`${fieldName}_lt`] = filter.value
+        break
+      // ... other operators
+    }
+  }
+
+  // Handle sorting and pagination
+  if (parsed.sorts.length > 0) {
+    params["sort"] = parsed.sorts
+      .map((s) => `${s.direction === "desc" ? "-" : ""}${s.field.join(".")}`)
+      .join(",")
+  }
+
+  if (parsed.limit != null) params["limit"] = parsed.limit
+  if (parsed.offset != null) params["offset"] = parsed.offset
+
+  return params as Partial<ListProductsParams>
+}
+
+export const productCollectionOptions = (queryClient: QueryClient) =>
+  createCollection(
+    queryCollectionOptions({
+      queryKey: ["Product"],
+      syncMode: "on-demand",
+      queryFn: async (ctx) => {
+        const params = translateProductPredicates(ctx.meta?.loadSubsetOptions)
+        return listProducts(params)
+      },
+      queryClient,
+      getKey: (item) => item.id,
+      // ... mutation handlers
+    })
+  )
+```
+
+### Supported Operators
+
+The predicate translator supports these TanStack DB operators:
+
+| Operator | REST Simple | JSON:API | Hasura | Prisma |
+|----------|-------------|----------|--------|--------|
+| `eq` | `field=value` | `filter[field]=value` | `{ _eq: value }` | `{ equals: value }` |
+| `lt` | `field_lt=value` | `filter[field][lt]=value` | `{ _lt: value }` | `{ lt: value }` |
+| `lte` | `field_lte=value` | `filter[field][lte]=value` | `{ _lte: value }` | `{ lte: value }` |
+| `gt` | `field_gt=value` | `filter[field][gt]=value` | `{ _gt: value }` | `{ gt: value }` |
+| `gte` | `field_gte=value` | `filter[field][gte]=value` | `{ _gte: value }` | `{ gte: value }` |
+| `in` | `field_in=value` | `filter[field][in]=value` | `{ _in: value }` | `{ in: value }` |
+
+Unsupported operators are silently ignored.

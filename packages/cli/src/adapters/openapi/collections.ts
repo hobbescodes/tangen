@@ -3,11 +3,19 @@
  *
  * Discovers entities from OpenAPI specs for TanStack DB collection generation.
  * Identifies list queries, CRUD mutations, and key fields automatically.
+ * Supports on-demand sync mode with predicate push-down.
  */
 
+import {
+  generatePredicateTranslator,
+  getPredicateImports,
+  needsPredicateTranslation,
+} from "@/generators/predicates";
 import { toCamelCase, toPascalCase } from "@/utils/naming";
+import { analyzeQueryParameters, hasQueryCapabilities } from "./analysis";
 
 import type { OpenAPIV3, OpenAPIV3_1 } from "openapi-types";
+import type { CollectionOverrideConfig } from "@/core/config";
 import type {
   CollectionDiscoveryResult,
   CollectionEntity,
@@ -29,7 +37,7 @@ type OpenAPISchema = OpenAPIV3.SchemaObject | OpenAPIV3_1.SchemaObject;
 export function discoverOpenAPIEntities(
   schema: OpenAPIAdapterSchema,
   operations: ParsedOperation[],
-  overrides?: Record<string, { keyField?: string }>,
+  overrides?: Record<string, CollectionOverrideConfig>,
 ): CollectionDiscoveryResult {
   const warnings: string[] = [];
   const entities: CollectionEntity[] = [];
@@ -67,7 +75,7 @@ function discoverEntityFromListQuery(
   listQuery: ParsedOperation,
   allOperations: ParsedOperation[],
   document: OpenAPIAdapterSchema["document"],
-  overrides?: Record<string, { keyField?: string }>,
+  overrides?: Record<string, CollectionOverrideConfig>,
   warnings: string[] = [],
 ): CollectionEntity | null {
   const responseSchema = listQuery.responseSchema as OpenAPISchema;
@@ -93,8 +101,11 @@ function discoverEntityFromListQuery(
     return null;
   }
 
+  // Get overrides for this entity
+  const entityOverrides = overrides?.[entityName];
+
   // Find key field
-  const keyFieldOverride = overrides?.[entityName]?.keyField;
+  const keyFieldOverride = entityOverrides?.keyField;
   const { keyField, keyFieldType } = findKeyField(
     itemSchema,
     keyFieldOverride,
@@ -119,6 +130,23 @@ function discoverEntityFromListQuery(
   // Determine the TypeScript type name
   const typeName = toPascalCase(entityName);
 
+  // Analyze query parameters for filter/sort/pagination capabilities
+  const queryCapabilities = analyzeQueryParameters(listQuery.queryParams);
+
+  // Check for syncMode override and warn if on-demand but no capabilities
+  const syncMode = entityOverrides?.syncMode;
+  if (syncMode === "on-demand" && !hasQueryCapabilities(queryCapabilities)) {
+    warnings.push(
+      `Entity "${entityName}" configured for on-demand sync, but no filtering parameters detected in ${listQuery.path}. Collection will fetch all data regardless of predicates.`,
+    );
+  }
+
+  // Determine params type name if the list query accepts parameters
+  const hasQueryParams = listQuery.queryParams.length > 0;
+  const paramsTypeName = hasQueryParams
+    ? `${toPascalCase(listQuery.operationId)}Params`
+    : undefined;
+
   return {
     name: entityName,
     typeName,
@@ -127,8 +155,19 @@ function discoverEntityFromListQuery(
     listQuery: {
       operationName: listQuery.operationId,
       queryKey: [entityName],
+      paramsTypeName,
     },
     mutations,
+    // On-demand mode properties
+    syncMode,
+    predicateMapping:
+      entityOverrides?.predicateMapping ??
+      (queryCapabilities.filter.filterStyle !== "custom"
+        ? queryCapabilities.filter.filterStyle
+        : undefined),
+    filterCapabilities: queryCapabilities.filter,
+    sortCapabilities: queryCapabilities.sort,
+    paginationCapabilities: queryCapabilities.pagination,
   };
 }
 
@@ -367,19 +406,37 @@ export function generateOpenAPICollections(
 ): GeneratedFile {
   const lines: string[] = [];
 
+  // Check if any entities need predicate translation (on-demand mode)
+  const hasOnDemandEntities = entities.some(needsPredicateTranslation);
+
   // Imports
   lines.push(
     'import { queryCollectionOptions } from "@tanstack/query-db-collection"',
   );
   lines.push('import { createCollection } from "@tanstack/react-db"');
+
+  // Add predicate imports if needed
+  if (hasOnDemandEntities) {
+    lines.push(getPredicateImports());
+  }
+
   lines.push("");
   lines.push('import type { QueryClient } from "@tanstack/react-query"');
 
   // Import types from the types file
   const typeNames = entities.map((e) => e.typeName);
-  if (typeNames.length > 0) {
+
+  // Also import params types for on-demand entities
+  const paramsTypeNames = entities
+    .filter(needsPredicateTranslation)
+    .map((e) => e.listQuery.paramsTypeName)
+    .filter((name): name is string => !!name);
+
+  const allTypeImports = [...new Set([...typeNames, ...paramsTypeNames])];
+
+  if (allTypeImports.length > 0) {
     lines.push(
-      `import type { ${typeNames.join(", ")} } from "${options.typesImportPath}"`,
+      `import type { ${allTypeImports.join(", ")} } from "${options.typesImportPath}"`,
     );
   }
 
@@ -401,6 +458,20 @@ export function generateOpenAPICollections(
   }
 
   lines.push("");
+
+  // Generate predicate translators for on-demand entities
+  for (const entity of entities) {
+    if (needsPredicateTranslation(entity)) {
+      lines.push(
+        generatePredicateTranslator(
+          entity,
+          entity.listQuery.paramsTypeName,
+          "openapi",
+        ),
+      );
+      lines.push("");
+    }
+  }
 
   // Generate collection options for each entity
   for (const entity of entities) {
@@ -424,15 +495,33 @@ function generateEntityCollectionOptions(
   const lines: string[] = [];
   const collectionName = `${toCamelCase(entity.name)}CollectionOptions`;
   const listQueryFn = `${toCamelCase(entity.listQuery.operationName)}`;
+  const isOnDemand = needsPredicateTranslation(entity);
+  const translatorFn = `translate${entity.name}Predicates`;
 
   lines.push("/**");
   lines.push(` * Collection options for ${entity.name}`);
+  if (isOnDemand) {
+    lines.push(` * @remarks Uses on-demand sync mode with predicate push-down`);
+  }
   lines.push(" */");
   lines.push(`export const ${collectionName} = (queryClient: QueryClient) =>`);
   lines.push(`  createCollection(`);
   lines.push(`    queryCollectionOptions({`);
   lines.push(`      queryKey: ${JSON.stringify(entity.listQuery.queryKey)},`);
-  lines.push(`      queryFn: async () => ${listQueryFn}(),`);
+
+  // Generate queryFn based on sync mode
+  if (isOnDemand) {
+    lines.push(`      syncMode: "on-demand",`);
+    lines.push(`      queryFn: async (ctx) => {`);
+    lines.push(
+      `        const params = ${translatorFn}(ctx.meta?.loadSubsetOptions)`,
+    );
+    lines.push(`        return ${listQueryFn}(params)`);
+    lines.push(`      },`);
+  } else {
+    lines.push(`      queryFn: async () => ${listQueryFn}(),`);
+  }
+
   lines.push(`      queryClient,`);
   lines.push(`      getKey: (item) => item.${entity.keyField},`);
 

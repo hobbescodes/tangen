@@ -3,6 +3,7 @@
  *
  * Discovers entities from GraphQL schemas/documents for TanStack DB collection generation.
  * Identifies list queries, CRUD mutations, and key fields automatically.
+ * Supports on-demand sync mode with predicate push-down.
  */
 
 import {
@@ -12,7 +13,17 @@ import {
   isScalarType,
 } from "graphql";
 
+import {
+  generatePredicateTranslator,
+  getPredicateImports,
+  needsPredicateTranslation,
+} from "@/generators/predicates";
 import { toCamelCase, toPascalCase } from "@/utils/naming";
+import {
+  analyzeGraphQLQueryCapabilities,
+  hasQueryCapabilities,
+  inferPredicateMappingPreset,
+} from "./analysis";
 
 import type {
   GraphQLField,
@@ -20,6 +31,7 @@ import type {
   GraphQLOutputType,
   GraphQLSchema,
 } from "graphql";
+import type { CollectionOverrideConfig } from "@/core/config";
 import type { ParsedDocuments, ParsedOperation } from "@/core/documents";
 import type {
   CollectionDiscoveryResult,
@@ -38,7 +50,7 @@ const FUNCTIONS_IMPORT_PATH = "../functions";
  */
 export function discoverGraphQLEntities(
   schema: GraphQLAdapterSchema,
-  overrides?: Record<string, { keyField?: string }>,
+  overrides?: Record<string, CollectionOverrideConfig>,
 ): CollectionDiscoveryResult {
   const warnings: string[] = [];
   const entities: CollectionEntity[] = [];
@@ -158,12 +170,12 @@ function analyzeReturnType(type: GraphQLOutputType): {
  * Discover an entity from a list query
  */
 function discoverEntityFromListQuery(
-  _field: GraphQLField<unknown, unknown>,
+  field: GraphQLField<unknown, unknown>,
   typeName: string,
   operation: ParsedOperation,
   graphqlSchema: GraphQLSchema,
   documents: ParsedDocuments,
-  overrides?: Record<string, { keyField?: string }>,
+  overrides?: Record<string, CollectionOverrideConfig>,
   warnings: string[] = [],
 ): CollectionEntity | null {
   // Get the GraphQL type
@@ -173,8 +185,11 @@ function discoverEntityFromListQuery(
     return null;
   }
 
+  // Get overrides for this entity
+  const entityOverrides = overrides?.[typeName];
+
   // Find key field
-  const keyFieldOverride = overrides?.[typeName]?.keyField;
+  const keyFieldOverride = entityOverrides?.keyField;
   const { keyField, keyFieldType } = findKeyField(
     type,
     keyFieldOverride,
@@ -192,6 +207,26 @@ function discoverEntityFromListQuery(
   // Find CRUD mutations for this entity
   const mutations = findCrudMutations(typeName, documents, graphqlSchema);
 
+  // Analyze query field for filter/sort/pagination capabilities
+  const queryCapabilities = analyzeGraphQLQueryCapabilities(field);
+
+  // Check for syncMode override and warn if on-demand but no capabilities
+  const syncMode = entityOverrides?.syncMode;
+  if (syncMode === "on-demand" && !hasQueryCapabilities(queryCapabilities)) {
+    warnings.push(
+      `Entity "${typeName}" configured for on-demand sync, but no filtering arguments detected on the query field. Collection will fetch all data regardless of predicates.`,
+    );
+  }
+
+  // Determine variables type name if query has arguments
+  const hasArgs = field.args.length > 0;
+  const variablesTypeName = hasArgs
+    ? `${toPascalCase(operation.name)}QueryVariables`
+    : undefined;
+
+  // Infer predicate mapping from capabilities if not explicitly configured
+  const detectedPreset = inferPredicateMappingPreset(queryCapabilities);
+
   return {
     name: typeName,
     typeName: toPascalCase(typeName),
@@ -200,8 +235,15 @@ function discoverEntityFromListQuery(
     listQuery: {
       operationName: operation.name,
       queryKey: [typeName],
+      paramsTypeName: variablesTypeName,
     },
     mutations,
+    // On-demand mode properties
+    syncMode,
+    predicateMapping: entityOverrides?.predicateMapping ?? detectedPreset,
+    filterCapabilities: queryCapabilities.filter,
+    sortCapabilities: queryCapabilities.sort,
+    paginationCapabilities: queryCapabilities.pagination,
   };
 }
 
@@ -351,19 +393,37 @@ export function generateGraphQLCollections(
 ): GeneratedFile {
   const lines: string[] = [];
 
+  // Check if any entities need predicate translation (on-demand mode)
+  const hasOnDemandEntities = entities.some(needsPredicateTranslation);
+
   // Imports
   lines.push(
     'import { queryCollectionOptions } from "@tanstack/query-db-collection"',
   );
   lines.push('import { createCollection } from "@tanstack/react-db"');
+
+  // Add predicate imports if needed
+  if (hasOnDemandEntities) {
+    lines.push(getPredicateImports());
+  }
+
   lines.push("");
   lines.push('import type { QueryClient } from "@tanstack/react-query"');
 
   // Import types from the types file
   const typeNames = entities.map((e) => e.typeName);
-  if (typeNames.length > 0) {
+
+  // Also import variables types for on-demand entities
+  const variablesTypeNames = entities
+    .filter(needsPredicateTranslation)
+    .map((e) => e.listQuery.paramsTypeName)
+    .filter((name): name is string => !!name);
+
+  const allTypeImports = [...new Set([...typeNames, ...variablesTypeNames])];
+
+  if (allTypeImports.length > 0) {
     lines.push(
-      `import type { ${typeNames.join(", ")} } from "${options.typesImportPath}"`,
+      `import type { ${allTypeImports.join(", ")} } from "${options.typesImportPath}"`,
     );
   }
 
@@ -385,6 +445,20 @@ export function generateGraphQLCollections(
   }
 
   lines.push("");
+
+  // Generate predicate translators for on-demand entities
+  for (const entity of entities) {
+    if (needsPredicateTranslation(entity)) {
+      lines.push(
+        generatePredicateTranslator(
+          entity,
+          entity.listQuery.paramsTypeName,
+          "graphql",
+        ),
+      );
+      lines.push("");
+    }
+  }
 
   // Generate collection options for each entity
   for (const entity of entities) {
@@ -408,15 +482,33 @@ function generateEntityCollectionOptions(
   const lines: string[] = [];
   const collectionName = `${toCamelCase(entity.name)}CollectionOptions`;
   const listQueryFn = `${toCamelCase(entity.listQuery.operationName)}`;
+  const isOnDemand = needsPredicateTranslation(entity);
+  const translatorFn = `translate${entity.name}Predicates`;
 
   lines.push("/**");
   lines.push(` * Collection options for ${entity.name}`);
+  if (isOnDemand) {
+    lines.push(` * @remarks Uses on-demand sync mode with predicate push-down`);
+  }
   lines.push(" */");
   lines.push(`export const ${collectionName} = (queryClient: QueryClient) =>`);
   lines.push(`  createCollection(`);
   lines.push(`    queryCollectionOptions({`);
   lines.push(`      queryKey: ${JSON.stringify(entity.listQuery.queryKey)},`);
-  lines.push(`      queryFn: async () => ${listQueryFn}(),`);
+
+  // Generate queryFn based on sync mode
+  if (isOnDemand) {
+    lines.push(`      syncMode: "on-demand",`);
+    lines.push(`      queryFn: async (ctx) => {`);
+    lines.push(
+      `        const variables = ${translatorFn}(ctx.meta?.loadSubsetOptions)`,
+    );
+    lines.push(`        return ${listQueryFn}(variables)`);
+    lines.push(`      },`);
+  } else {
+    lines.push(`      queryFn: async () => ${listQueryFn}(),`);
+  }
+
   lines.push(`      queryClient,`);
   lines.push(`      getKey: (item) => item.${entity.keyField},`);
 

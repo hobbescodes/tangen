@@ -30,11 +30,47 @@ export interface LoadConfigResult {
 // =============================================================================
 
 /**
+ * Predicate mapping presets for TanStack DB on-demand sync mode
+ *
+ * - "hasura" - GraphQL Hasura-style: *_bool_exp, *_order_by
+ * - "prisma" - GraphQL Prisma-style: *WhereInput, *OrderByInput
+ * - "rest-simple" - OpenAPI simple REST: field_eq, field_lt, sort=field:direction
+ * - "jsonapi" - OpenAPI JSON:API style: filter[field], sort=-field
+ */
+export const predicateMappingPresetSchema = z.enum([
+  "hasura",
+  "prisma",
+  "rest-simple",
+  "jsonapi",
+]);
+
+export type PredicateMappingPreset = z.infer<
+  typeof predicateMappingPresetSchema
+>;
+
+// NOTE: Custom predicate mapping configuration may be added in the future
+// based on user feedback. For now, only the 4 presets are supported.
+
+/**
+ * Sync mode for TanStack DB collections
+ *
+ * - "full" - Fetch all data, filter client-side (default)
+ * - "on-demand" - Push predicates to server, fetch only matching data
+ */
+export const syncModeSchema = z.enum(["full", "on-demand"]);
+
+export type SyncMode = z.infer<typeof syncModeSchema>;
+
+/**
  * Per-collection override configuration
  */
 export const collectionOverrideSchema = z.object({
   /** Override the key field for this collection (default: auto-detected 'id' field) */
   keyField: z.string().optional(),
+  /** Sync mode for this collection (default: "full") */
+  syncMode: syncModeSchema.optional(),
+  /** Predicate mapping preset for on-demand mode */
+  predicateMapping: predicateMappingPresetSchema.optional(),
 });
 
 export type CollectionOverrideConfig = z.infer<typeof collectionOverrideSchema>;
@@ -426,6 +462,6 @@ export function getScalarsFromSource(
  */
 export function getDbCollectionOverrides(
   source: SourceConfig,
-): Record<string, { keyField?: string }> | undefined {
+): Record<string, CollectionOverrideConfig> | undefined {
   return source.overrides?.db?.collections;
 }

@@ -1,7 +1,10 @@
 import type {
+  CollectionOverrideConfig,
   GraphQLSourceConfig,
   OpenAPISourceConfig,
+  PredicateMappingPreset,
   SourceConfig,
+  SyncMode,
 } from "@/core/config";
 
 /**
@@ -14,6 +17,61 @@ export interface GeneratedFile {
   content: string;
   /** Any warnings generated during code generation */
   warnings?: string[];
+}
+
+// =============================================================================
+// Filter/Sort/Pagination Capability Types (for TanStack DB on-demand mode)
+// =============================================================================
+
+/**
+ * Detected or configured filtering capabilities for an entity
+ */
+export interface FilterCapabilities {
+  /** Whether filtering is supported by the API */
+  hasFiltering: boolean;
+  /** The detected or configured filter style */
+  filterStyle?: PredicateMappingPreset | "custom";
+  /** Names of detected filter parameters (OpenAPI) or input type (GraphQL) */
+  filterParams?: string[];
+  /** GraphQL: The filter input type name (e.g., "users_bool_exp") */
+  filterInputType?: string;
+}
+
+/**
+ * Detected or configured sorting capabilities for an entity
+ */
+export interface SortCapabilities {
+  /** Whether sorting is supported by the API */
+  hasSorting: boolean;
+  /** The sort parameter name (OpenAPI) or input type (GraphQL) */
+  sortParam?: string;
+  /** GraphQL: The order_by input type name */
+  orderByInputType?: string;
+}
+
+/**
+ * Detected or configured pagination capabilities for an entity
+ */
+export interface PaginationCapabilities {
+  /** Pagination style */
+  style: "offset" | "page" | "cursor" | "relay" | "none";
+  /** Limit parameter name */
+  limitParam?: string;
+  /** Offset parameter name (for offset-based pagination) */
+  offsetParam?: string;
+  /** Page parameter name (for page-based pagination) */
+  pageParam?: string;
+  /** Per-page parameter name (for page-based pagination) */
+  perPageParam?: string;
+}
+
+/**
+ * Combined analysis result for an entity's query capabilities
+ */
+export interface QueryCapabilities {
+  filter: FilterCapabilities;
+  sort: SortCapabilities;
+  pagination: PaginationCapabilities;
 }
 
 /**
@@ -102,9 +160,24 @@ export interface CollectionEntity {
     operationName: string;
     /** Query key for TanStack Query */
     queryKey: string[];
+    /** The params type name for the list query function (if it accepts params) */
+    paramsTypeName?: string;
   };
   /** Available mutations for this entity */
   mutations: CollectionMutation[];
+
+  // === TanStack DB On-Demand Mode Properties ===
+
+  /** Configured sync mode (default: "full") */
+  syncMode?: SyncMode;
+  /** Configured or detected predicate mapping preset */
+  predicateMapping?: PredicateMappingPreset;
+  /** Detected filtering capabilities */
+  filterCapabilities?: FilterCapabilities;
+  /** Detected sorting capabilities */
+  sortCapabilities?: SortCapabilities;
+  /** Detected pagination capabilities */
+  paginationCapabilities?: PaginationCapabilities;
 }
 
 /**
@@ -126,8 +199,8 @@ export interface CollectionGenOptions {
   typesImportPath: string;
   /** The source name */
   sourceName: string;
-  /** Per-entity overrides from config */
-  collectionOverrides?: Record<string, { keyField?: string }>;
+  /** Per-entity overrides from config (includes keyField, syncMode, predicateMapping) */
+  collectionOverrides?: Record<string, CollectionOverrideConfig>;
 }
 
 /**
@@ -220,13 +293,13 @@ export interface SourceAdapter<
    * Discover entities from the schema for TanStack DB collection generation
    * @param schema The loaded schema
    * @param config The source configuration
-   * @param overrides Per-entity config overrides (e.g., custom keyField)
+   * @param overrides Per-entity config overrides (e.g., keyField, syncMode, predicateMapping)
    * @returns Entity metadata for collection generation
    */
   discoverCollectionEntities(
     schema: TSchema,
     config: TConfig,
-    overrides?: Record<string, { keyField?: string }>,
+    overrides?: Record<string, CollectionOverrideConfig>,
   ): CollectionDiscoveryResult;
 
   /**
