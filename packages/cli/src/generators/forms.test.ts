@@ -14,18 +14,11 @@ describe("generateFormOptionsCode", () => {
       {
         operationId: "createUser",
         requestSchemaName: "createUserRequestSchema",
-        requestSchemaCode: `z.object({
-  name: z.string(),
-  email: z.string()
-})`,
       },
     ];
 
     const result = generateFormOptionsCode(mutations, {
       schemaImportPath: "./types",
-      allSchemas: [
-        "export const createUserRequestSchema = z.object({ name: z.string(), email: z.string() })",
-      ],
     });
 
     expect(result.content).toContain("/* eslint-disable */");
@@ -35,14 +28,12 @@ describe("generateFormOptionsCode", () => {
     expect(result.content).toContain(
       'import { createUserRequestSchema } from "./types"',
     );
-    // Should import the type for satisfies clause
+    // Should import the type for type assertion
     expect(result.content).toContain(
       'import type { CreateUserRequest } from "./types"',
     );
     expect(result.content).toContain("export const createUserFormOptions");
-    expect(result.content).toContain("defaultValues:");
-    // Should use 'as' to widen the type to match the schema
-    expect(result.content).toContain("as CreateUserRequest");
+    expect(result.content).toContain("defaultValues: {} as CreateUserRequest");
     expect(result.content).toContain("validators:");
     expect(result.content).toContain("onSubmitAsync: createUserRequestSchema");
     expect(result.warnings).toHaveLength(0);
@@ -53,18 +44,15 @@ describe("generateFormOptionsCode", () => {
       {
         operationId: "createUser",
         requestSchemaName: "createUserRequestSchema",
-        requestSchemaCode: "z.object({ name: z.string() })",
       },
       {
         operationId: "updateUser",
         requestSchemaName: "updateUserRequestSchema",
-        requestSchemaCode: "z.object({ id: z.string(), name: z.string() })",
       },
     ];
 
     const result = generateFormOptionsCode(mutations, {
       schemaImportPath: "./types",
-      allSchemas: [],
     });
 
     expect(result.content).toContain("createUserFormOptions");
@@ -81,7 +69,6 @@ describe("generateFormOptionsCode", () => {
   it("returns empty file with warning when no mutations provided", () => {
     const result = generateFormOptionsCode([], {
       schemaImportPath: "./types",
-      allSchemas: [],
     });
 
     expect(result.content).toContain("/* eslint-disable */");
@@ -90,49 +77,23 @@ describe("generateFormOptionsCode", () => {
     expect(result.warnings[0]).toContain("No mutations found");
   });
 
-  it("handles complex nested object schemas for default values", () => {
+  it("generates empty object as default values", () => {
     const mutations = [
       {
         operationId: "createPost",
         requestSchemaName: "createPostRequestSchema",
-        requestSchemaCode: `z.object({
-  title: z.string(),
-  content: z.string(),
-  tags: z.array(z.string())
-})`,
       },
     ];
 
     const result = generateFormOptionsCode(mutations, {
       schemaImportPath: "../schema/types",
-      allSchemas: [],
     });
 
     expect(result.content).toContain("createPostFormOptions");
     expect(result.content).toContain(
       'import { createPostRequestSchema } from "../schema/types"',
     );
-    expect(result.warnings).toHaveLength(0);
-  });
-
-  it("handles unknown schema types gracefully", () => {
-    const mutations = [
-      {
-        operationId: "createItem",
-        requestSchemaName: "createItemRequestSchema",
-        // Unknown/unrecognized schema code
-        requestSchemaCode: "z.unknown()",
-      },
-    ];
-
-    const result = generateFormOptionsCode(mutations, {
-      schemaImportPath: "./types",
-      allSchemas: [],
-    });
-
-    // Should still generate form options with empty object default values for unknown types
-    expect(result.content).toContain("createItemFormOptions");
-    expect(result.content).toContain("defaultValues: {} as CreateItemRequest");
+    expect(result.content).toContain("defaultValues: {} as CreatePostRequest");
     expect(result.warnings).toHaveLength(0);
   });
 
@@ -141,13 +102,11 @@ describe("generateFormOptionsCode", () => {
       {
         operationId: "CreateNewUser",
         requestSchemaName: "createNewUserRequestSchema",
-        requestSchemaCode: "z.object({ name: z.string() })",
       },
     ];
 
     const result = generateFormOptionsCode(mutations, {
       schemaImportPath: "./types",
-      allSchemas: [],
     });
 
     expect(result.content).toContain("createNewUserFormOptions");

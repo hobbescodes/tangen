@@ -7,33 +7,21 @@ import { createPetVariablesSchema, updatePetVariablesSchema, deletePetVariablesS
 import type { CreatePetVariables, UpdatePetVariables, DeletePetVariables } from "./../schema"
 
 export const createPetFormOptions = formOptions({
-  defaultValues: {
-      input: {
-        name: "",
-        category: "dog",
-        status: "available",
-        tags: null,
-      },
-    } as CreatePetVariables,
+  defaultValues: {} as CreatePetVariables,
   validators: {
     onSubmitAsync: createPetVariablesSchema,
   },
 })
 
 export const updatePetFormOptions = formOptions({
-  defaultValues: {
-      id: "",
-      input: {},
-    } as UpdatePetVariables,
+  defaultValues: {} as UpdatePetVariables,
   validators: {
     onSubmitAsync: updatePetVariablesSchema,
   },
 })
 
 export const deletePetFormOptions = formOptions({
-  defaultValues: {
-      id: "",
-    } as DeletePetVariables,
+  defaultValues: {} as DeletePetVariables,
   validators: {
     onSubmitAsync: deletePetVariablesSchema,
   },

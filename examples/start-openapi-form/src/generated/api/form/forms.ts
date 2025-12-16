@@ -7,12 +7,7 @@ import { createPetRequestSchema, updatePetRequestSchema, createUserRequestSchema
 import type { CreatePetRequest, UpdatePetRequest, CreateUserRequest, UpdateUserRequest } from "./../schema"
 
 export const createPetFormOptions = formOptions({
-  defaultValues: {
-      name: "",
-      category: "dog",
-      status: "available",
-      tags: [],
-    } as CreatePetRequest,
+  defaultValues: {} as CreatePetRequest,
   validators: {
     onSubmitAsync: createPetRequestSchema,
   },
@@ -26,11 +21,7 @@ export const updatePetFormOptions = formOptions({
 })
 
 export const createUserFormOptions = formOptions({
-  defaultValues: {
-      email: "",
-      name: "",
-      role: "admin",
-    } as CreateUserRequest,
+  defaultValues: {} as CreateUserRequest,
   validators: {
     onSubmitAsync: createUserRequestSchema,
   },
