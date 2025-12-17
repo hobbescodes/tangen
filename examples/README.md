@@ -12,17 +12,17 @@ All examples are TanStack Start applications that demonstrate various combinatio
 
 ## Examples
 
-| Example | Adapter | Generators | Mode | Description |
-|---------|---------|------------|------|-------------|
-| `start-graphql-query` | GraphQL | `["query"]` | SSR | Basic GraphQL with TanStack Query |
-| `start-graphql-query-form` | GraphQL | `["query", "form"]` | SSR | GraphQL + TanStack Form validation |
-| `start-openapi-query` | OpenAPI | `["query"]` | SSR | Basic OpenAPI/REST with TanStack Query |
-| `start-openapi-query-form` | OpenAPI | `["query", "form"]` | SSR | OpenAPI + TanStack Form validation |
-| `start-openapi-db` | OpenAPI | `["db"]` | SPA | Local-first with full sync |
-| `start-openapi-db-ondemand` | OpenAPI | `["db"]` | SPA | Server-side filtering (on-demand sync) |
-| `start-graphql-db-hasura` | GraphQL | `["db"]` | SPA | Hasura-style predicate mapping |
-| `start-multi-source` | Both | `["query", "form"]` | SSR | Multiple data sources in one app |
-| `start-full-stack` | OpenAPI | `["query", "form", "db"]` | SPA | All generators combined |
+| Example                     | Adapter | Generators                | Mode | Description                            |
+| --------------------------- | ------- | ------------------------- | ---- | -------------------------------------- |
+| `start-graphql-query`       | GraphQL | `["query"]`               | SSR  | Basic GraphQL with TanStack Query      |
+| `start-graphql-form`        | GraphQL | `["query", "form"]`       | SSR  | GraphQL + TanStack Form validation     |
+| `start-openapi-query`       | OpenAPI | `["query"]`               | SSR  | Basic OpenAPI/REST with TanStack Query |
+| `start-openapi-form`        | OpenAPI | `["query", "form"]`       | SSR  | OpenAPI + TanStack Form validation     |
+| `start-openapi-db`          | OpenAPI | `["db"]`                  | SPA  | Local-first with full sync             |
+| `start-openapi-db-ondemand` | OpenAPI | `["db"]`                  | SPA  | Server-side filtering (on-demand sync) |
+| `start-graphql-db-hasura`   | GraphQL | `["db"]`                  | SPA  | Hasura-style predicate mapping         |
+| `start-multi-source`        | Both    | `["query", "form"]`       | SSR  | Multiple data sources in one app       |
+| `start-full-stack`          | OpenAPI | `["query", "form", "db"]` | SPA  | All generators combined                |
 
 ## Running Examples
 
