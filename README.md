@@ -395,10 +395,9 @@ Generated files are organized by source name, with generators in subdirectories:
 src/generated/
 └── <source>/              # e.g., "graphql", "rest-api"
     ├── client.ts          # API client (shared)
-    ├── schema.ts          # Zod schemas (OpenAPI always, GraphQL when form enabled)
-    ├── functions.ts       # Standalone fetch functions (when using functions generator)
+    ├── schema.ts          # Zod schemas + TypeScript types (inferred via z.infer)
+    ├── functions.ts       # Standalone fetch functions (when query/db enabled)
     ├── query/             # TanStack Query output
-    │   ├── types.ts       # TypeScript types (GraphQL only)
     │   └── operations.ts  # queryOptions and mutationOptions
     ├── form/              # TanStack Form output
     │   └── forms.ts       # formOptions
@@ -406,7 +405,7 @@ src/generated/
         └── collections.ts # queryCollectionOptions (imports from ../functions.ts)
 ```
 
-**Note:** The `client.ts`, `schema.ts`, and `functions.ts` files are at the source root, shared by all generators. The `query/operations.ts` and `db/collections.ts` files automatically import from `functions.ts`.
+**Note:** The `client.ts`, `schema.ts`, and `functions.ts` files are at the source root, shared by all generators. All TypeScript types are inferred from Zod schemas using `z.infer<typeof schema>`. The `query/operations.ts` and `db/collections.ts` files automatically import from `functions.ts`.
 
 ### Default Scalar Mappings (GraphQL)
 
@@ -449,54 +448,66 @@ export const getClient = async () => {
 };
 ```
 
-#### `<source>/query/types.ts`
+#### `<source>/schema.ts`
 
-TypeScript types generated from your schema and operations:
+Zod schemas and TypeScript types generated from your schema and operations:
 
 ```typescript
-// Schema types
-export type CreateUserInput = {
-  name: string;
-  email: string;
-};
+import * as z from "zod";
 
-export enum UserRole {
-  ADMIN = "ADMIN",
-  USER = "USER",
-}
+// Zod Schemas
+export const userRoleSchema = z.enum(["ADMIN", "USER"]);
+export const createUserInputSchema = z.object({
+  name: z.string(),
+  email: z.string(),
+});
 
-// Fragment types
-export type UserFieldsFragment = {
-  id: string;
-  name: string;
-  email: string;
-};
+// Fragment schemas
+export const userFieldsFragmentSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+});
 
-// Operation types
-export type GetUserQueryVariables = { id: string };
-export type GetUserQuery = { user: UserFieldsFragment | null };
+// Operation variable schemas
+export const getUserQueryVariablesSchema = z.object({
+  id: z.string(),
+});
+
+// Operation response schemas
+export const getUserQuerySchema = z.object({
+  user: z.object({
+    ...userFieldsFragmentSchema.shape,
+  }).nullable(),
+});
+
+// TypeScript Types (inferred from Zod schemas)
+export type UserRole = z.infer<typeof userRoleSchema>;
+export type CreateUserInput = z.infer<typeof createUserInputSchema>;
+export type UserFieldsFragment = z.infer<typeof userFieldsFragmentSchema>;
+export type GetUserQueryVariables = z.infer<typeof getUserQueryVariablesSchema>;
+export type GetUserQuery = z.infer<typeof getUserQuerySchema>;
 ```
 
 #### `<source>/query/operations.ts`
 
-Ready-to-use `queryOptions` and `mutationOptions`:
+Ready-to-use `queryOptions` and `mutationOptions` that import from the standalone functions:
 
 ```typescript
+import { queryOptions, mutationOptions } from "@tanstack/react-query";
+import { getUser, createUser } from "../functions";
+import type { GetUserQueryVariables, CreateUserMutationVariables } from "../schema";
+
 export const getUserQueryOptions = (variables: GetUserQueryVariables) =>
   queryOptions({
     queryKey: ["graphql", "GetUser", variables],
-    queryFn: async () =>
-      (await getClient()).request<GetUserQuery>(GetUserDocument, variables),
+    queryFn: () => getUser(variables),
   });
 
 export const createUserMutationOptions = () =>
   mutationOptions({
     mutationKey: ["graphql", "CreateUser"],
-    mutationFn: async (variables: CreateUserMutationVariables) =>
-      (await getClient()).request<CreateUserMutation>(
-        CreateUserDocument,
-        variables
-      ),
+    mutationFn: (variables: CreateUserMutationVariables) => createUser(variables),
   });
 ```
 
@@ -774,10 +785,10 @@ When `query` or `db` is in your `generates` array, tangrams creates standalone f
 src/generated/
 └── graphql/
     ├── client.ts
+    ├── schema.ts          # Zod schemas + TypeScript types
     ├── functions.ts       # Auto-generated standalone async fetch functions
     └── query/
-        ├── types.ts
-        └── operations.ts  # Imports from ../functions.ts
+        └── operations.ts  # Imports from ../functions.ts and ../schema.ts
 ```
 
 #### `<source>/functions.ts`
@@ -786,9 +797,9 @@ Standalone async functions for all operations:
 
 ```typescript
 import { getClient } from "./client";
-import type { GetUserQuery, GetUserQueryVariables } from "./query/types";
+import type { GetUserQuery, GetUserQueryVariables } from "./schema";
 
-const GetUserDocument = `
+const GetUserDocument = /* GraphQL */ `
   query GetUser($id: ID!) {
     user(id: $id) {
       id
@@ -798,20 +809,11 @@ const GetUserDocument = `
   }
 `;
 
-export async function getUser(
-  variables: GetUserQueryVariables
-): Promise<GetUserQuery> {
-  return (await getClient()).request<GetUserQuery>(GetUserDocument, variables);
-}
+export const getUser = async (variables: GetUserQueryVariables) =>
+  (await getClient()).request<GetUserQuery>(GetUserDocument, variables);
 
-export async function createUser(
-  variables: CreateUserMutationVariables
-): Promise<CreateUserMutation> {
-  return (await getClient()).request<CreateUserMutation>(
-    CreateUserDocument,
-    variables
-  );
-}
+export const createUser = async (variables: CreateUserMutationVariables) =>
+  (await getClient()).request<CreateUserMutation>(CreateUserDocument, variables);
 ```
 
 #### `<source>/query/operations.ts`
@@ -819,7 +821,9 @@ export async function createUser(
 Query options that import and use the standalone functions:
 
 ```typescript
+import { queryOptions, mutationOptions } from "@tanstack/react-query";
 import { getUser, createUser } from "../functions";
+import type { GetUserQueryVariables, CreateUserMutationVariables } from "../schema";
 
 export const getUserQueryOptions = (variables: GetUserQueryVariables) =>
   queryOptions({
@@ -830,8 +834,7 @@ export const getUserQueryOptions = (variables: GetUserQueryVariables) =>
 export const createUserMutationOptions = () =>
   mutationOptions({
     mutationKey: ["graphql", "CreateUser"],
-    mutationFn: (variables: CreateUserMutationVariables) =>
-      createUser(variables),
+    mutationFn: (variables: CreateUserMutationVariables) => createUser(variables),
   });
 ```
 

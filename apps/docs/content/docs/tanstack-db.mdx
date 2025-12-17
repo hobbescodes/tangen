@@ -162,10 +162,9 @@ bunx tangrams generate
 src/generated/
 └── <source>/
     ├── client.ts             # API client (shared)
-    ├── schema.ts             # Zod schemas
+    ├── schema.ts             # Zod schemas + TypeScript types (inferred via z.infer)
     ├── functions.ts          # Standalone fetch functions (auto-generated)
     ├── query/
-    │   ├── types.ts          # TypeScript types (GraphQL only)
     │   └── operations.ts     # queryOptions and mutationOptions
     └── db/
         └── collections.ts    # TanStack DB collection options
@@ -182,23 +181,19 @@ When `"db"` is specified in the `generates` array:
 
 ```typescript
 import { getClient } from "./client"
-import type { ListUsersQuery, CreateUserMutation, CreateUserMutationVariables } from "./query/types"
+import type { ListUsersQuery, CreateUserMutation, CreateUserMutationVariables } from "./schema"
 
-export const listUsers = async (): Promise<ListUsersQuery> => {
-  return (await getClient()).request<ListUsersQuery>(ListUsersDocument)
-}
+export const listUsers = async () =>
+  (await getClient()).request<ListUsersQuery>(ListUsersDocument)
 
-export const createUser = async (variables: CreateUserMutationVariables): Promise<CreateUserMutation> => {
-  return (await getClient()).request<CreateUserMutation>(CreateUserDocument, variables)
-}
+export const createUser = async (variables: CreateUserMutationVariables) =>
+  (await getClient()).request<CreateUserMutation>(CreateUserDocument, variables)
 
-export const updateUser = async (variables: UpdateUserMutationVariables): Promise<UpdateUserMutation> => {
-  return (await getClient()).request<UpdateUserMutation>(UpdateUserDocument, variables)
-}
+export const updateUser = async (variables: UpdateUserMutationVariables) =>
+  (await getClient()).request<UpdateUserMutation>(UpdateUserDocument, variables)
 
-export const deleteUser = async (variables: DeleteUserMutationVariables): Promise<DeleteUserMutation> => {
-  return (await getClient()).request<DeleteUserMutation>(DeleteUserDocument, variables)
-}
+export const deleteUser = async (variables: DeleteUserMutationVariables) =>
+  (await getClient()).request<DeleteUserMutation>(DeleteUserDocument, variables)
 ```
 
 **Example `db/collections.ts`:**
@@ -208,7 +203,7 @@ import { queryCollectionOptions } from "@tanstack/query-db-collection"
 import { createCollection } from "@tanstack/react-db"
 
 import type { QueryClient } from "@tanstack/react-query"
-import type { User } from "./types"
+import type { User } from "../schema"
 import { listUsers, createUser, updateUser, deleteUser } from "../functions"
 
 /**
