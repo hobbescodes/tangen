@@ -4,7 +4,9 @@
   "type": "module",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "examples/*",
+    "examples/shared"
   ],
   "scripts": {
     "build": "bun --filter tangrams build",

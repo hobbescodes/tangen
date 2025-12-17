@@ -1395,10 +1395,11 @@ describe("generateFunctions (OpenAPI standalone functions)", () => {
       functionsOptions,
     );
 
-    // Should import response types
-    expect(result.content).toContain("type ListPetsResponse");
-    expect(result.content).toContain("type GetPetResponse");
-    expect(result.content).toContain("type CreatePetResponse");
+    // Should import response types (via import type { ... })
+    expect(result.content).toContain("import type {");
+    expect(result.content).toContain("ListPetsResponse");
+    expect(result.content).toContain("GetPetResponse");
+    expect(result.content).toContain("CreatePetResponse");
 
     // Should import response schemas for validation
     expect(result.content).toContain("listPetsResponseSchema");
@@ -1414,9 +1415,10 @@ describe("generateFunctions (OpenAPI standalone functions)", () => {
       functionsOptions,
     );
 
-    // Should import request types for POST/PUT operations
-    expect(result.content).toContain("type CreatePetRequest");
-    expect(result.content).toContain("type UpdatePetRequest");
+    // Should import request types for POST/PUT operations (via import type { ... })
+    expect(result.content).toContain("import type {");
+    expect(result.content).toContain("CreatePetRequest");
+    expect(result.content).toContain("UpdatePetRequest");
   });
 
   it("imports params types for operations with path/query params", async () => {
@@ -1427,9 +1429,10 @@ describe("generateFunctions (OpenAPI standalone functions)", () => {
       functionsOptions,
     );
 
-    // Should import params types
-    expect(result.content).toContain("type ListPetsParams");
-    expect(result.content).toContain("type GetPetParams");
+    // Should import params types (via import type { ... })
+    expect(result.content).toContain("import type {");
+    expect(result.content).toContain("ListPetsParams");
+    expect(result.content).toContain("GetPetParams");
   });
 
   it("uses $fetch with output validation in handlers", async () => {
@@ -1744,15 +1747,16 @@ describe("OpenAPI Collection Discovery", () => {
       expect(result.content).toContain("@tanstack/react-db");
     });
 
-    it("imports entity types from types file", async () => {
+    it("does not import unused entity types from types file", async () => {
       const schema = await openapiAdapter.loadSchema(config);
       const result = openapiAdapter.generateCollections(schema, config, {
         typesImportPath: "./schema",
         sourceName: "petstore",
       });
 
-      expect(result.content).toContain('from "./schema"');
-      expect(result.content).toContain("Pet");
+      // Entity types (like Pet) should NOT be imported when not used
+      // Only params types are imported (for on-demand mode)
+      expect(result.content).not.toContain("import type { Pet }");
     });
 
     it("imports functions from hardcoded ../functions path", async () => {

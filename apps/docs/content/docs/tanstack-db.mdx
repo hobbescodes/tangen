@@ -14,17 +14,17 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 <Tabs items={['bun', 'npm', 'pnpm']}>
   <Tab value="bun">
 ```bash
-bun add @tanstack/db @tanstack/react-db @tanstack/query-db-collection @tanstack/react-query
+bun add @tanstack/react-db @tanstack/query-db-collection @tanstack/react-query zod
 ```
   </Tab>
   <Tab value="npm">
 ```bash
-npm install @tanstack/db @tanstack/react-db @tanstack/query-db-collection @tanstack/react-query
+npm install @tanstack/react-db @tanstack/query-db-collection @tanstack/react-query zod
 ```
   </Tab>
   <Tab value="pnpm">
 ```bash
-pnpm add @tanstack/db @tanstack/react-db @tanstack/query-db-collection @tanstack/react-query
+pnpm add @tanstack/react-db @tanstack/query-db-collection @tanstack/react-query zod
 ```
   </Tab>
 </Tabs>
@@ -54,17 +54,17 @@ pnpm add graphql-request
 <Tabs items={['bun', 'npm', 'pnpm']}>
   <Tab value="bun">
 ```bash
-bun add @better-fetch/fetch zod
+bun add @better-fetch/fetch
 ```
   </Tab>
   <Tab value="npm">
 ```bash
-npm install @better-fetch/fetch zod
+npm install @better-fetch/fetch
 ```
   </Tab>
   <Tab value="pnpm">
 ```bash
-pnpm add @better-fetch/fetch zod
+pnpm add @better-fetch/fetch
 ```
   </Tab>
 </Tabs>
@@ -162,10 +162,9 @@ bunx tangrams generate
 src/generated/
 └── <source>/
     ├── client.ts             # API client (shared)
-    ├── schema.ts             # Zod schemas
+    ├── schema.ts             # Zod schemas + TypeScript types (inferred via z.infer)
     ├── functions.ts          # Standalone fetch functions (auto-generated)
     ├── query/
-    │   ├── types.ts          # TypeScript types (GraphQL only)
     │   └── operations.ts     # queryOptions and mutationOptions
     └── db/
         └── collections.ts    # TanStack DB collection options
@@ -182,23 +181,19 @@ When `"db"` is specified in the `generates` array:
 
 ```typescript
 import { getClient } from "./client"
-import type { ListUsersQuery, CreateUserMutation, CreateUserMutationVariables } from "./query/types"
+import type { ListUsersQuery, CreateUserMutation, CreateUserMutationVariables } from "./schema"
 
-export const listUsers = async (): Promise<ListUsersQuery> => {
-  return (await getClient()).request<ListUsersQuery>(ListUsersDocument)
-}
+export const listUsers = async () =>
+  (await getClient()).request<ListUsersQuery>(ListUsersDocument)
 
-export const createUser = async (variables: CreateUserMutationVariables): Promise<CreateUserMutation> => {
-  return (await getClient()).request<CreateUserMutation>(CreateUserDocument, variables)
-}
+export const createUser = async (variables: CreateUserMutationVariables) =>
+  (await getClient()).request<CreateUserMutation>(CreateUserDocument, variables)
 
-export const updateUser = async (variables: UpdateUserMutationVariables): Promise<UpdateUserMutation> => {
-  return (await getClient()).request<UpdateUserMutation>(UpdateUserDocument, variables)
-}
+export const updateUser = async (variables: UpdateUserMutationVariables) =>
+  (await getClient()).request<UpdateUserMutation>(UpdateUserDocument, variables)
 
-export const deleteUser = async (variables: DeleteUserMutationVariables): Promise<DeleteUserMutation> => {
-  return (await getClient()).request<DeleteUserMutation>(DeleteUserDocument, variables)
-}
+export const deleteUser = async (variables: DeleteUserMutationVariables) =>
+  (await getClient()).request<DeleteUserMutation>(DeleteUserDocument, variables)
 ```
 
 **Example `db/collections.ts`:**
@@ -208,7 +203,7 @@ import { queryCollectionOptions } from "@tanstack/query-db-collection"
 import { createCollection } from "@tanstack/react-db"
 
 import type { QueryClient } from "@tanstack/react-query"
-import type { User } from "./types"
+import type { User } from "../schema"
 import { listUsers, createUser, updateUser, deleteUser } from "../functions"
 
 /**
@@ -267,12 +262,12 @@ const usersCollection = userCollectionOptions(queryClient)
 Use the collection with TanStack DB's React hooks:
 
 ```typescript
-import { useQuery } from "@tanstack/react-db"
+import { useLiveQuery } from "@tanstack/react-db"
 import { userCollectionOptions } from "./generated/graphql/db/collections"
 
 function UserList({ queryClient }: { queryClient: QueryClient }) {
   const usersCollection = userCollectionOptions(queryClient)
-  const { data: users } = useQuery(usersCollection)
+  const { data: users } = useLiveQuery((q) => q.from({ user: usersCollection }))
 
   return (
     <ul>
@@ -280,31 +275,6 @@ function UserList({ queryClient }: { queryClient: QueryClient }) {
         <li key={user.id}>{user.name}</li>
       ))}
     </ul>
-  )
-}
-```
-
-### Combining with Query Options
-
-Since `"db"` automatically enables `"query"`, you can use both collections and standard query options:
-
-```typescript
-import { useQuery } from "@tanstack/react-query"
-import { getUserQueryOptions } from "./generated/graphql/query/operations"
-import { userCollectionOptions } from "./generated/graphql/db/collections"
-
-function Dashboard({ queryClient }: { queryClient: QueryClient }) {
-  // Use standard query options for one-off queries
-  const { data: currentUser } = useQuery(getUserQueryOptions({ id: "current-user" }))
-
-  // Use collection for list data with local-first sync
-  const usersCollection = userCollectionOptions(queryClient)
-
-  return (
-    <div>
-      <h1>Welcome, {currentUser?.user?.name}</h1>
-      {/* Use usersCollection with TanStack DB hooks */}
-    </div>
   )
 }
 ```

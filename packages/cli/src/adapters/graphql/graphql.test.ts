@@ -771,15 +771,16 @@ describe("GraphQL Collection Discovery", () => {
       expect(result.content).toContain("@tanstack/react-db");
     });
 
-    it("imports entity types from types file", async () => {
+    it("does not import unused entity types from types file", async () => {
       const schema = await graphqlAdapter.loadSchema(config);
       const result = graphqlAdapter.generateCollections(schema, config, {
         typesImportPath: "./types",
         sourceName: "test-api",
       });
 
-      expect(result.content).toContain('from "./types"');
-      expect(result.content).toContain("User");
+      // Entity types (like User) should NOT be imported when not used
+      // Only params/variables types are imported (for on-demand mode)
+      expect(result.content).not.toContain("import type { User }");
     });
 
     it("imports client functions from hardcoded ../functions path", async () => {

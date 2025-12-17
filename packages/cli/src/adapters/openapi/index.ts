@@ -124,32 +124,15 @@ class OpenAPIAdapterImpl implements IOpenAPIAdapter {
       (op) => mutationMethods.has(op.method) && op.requestBody,
     );
 
-    // Generate schemas to get the schema strings for default value generation
-    const schemasResult = generateOpenAPIZodSchemas(document, mutations);
-
     // Build mutation info for form generation
-    const mutationOps = mutations.map((op) => {
-      const schemaName = getOpenAPIRequestSchemaName(op.operationId);
-      // Find the schema code - look for the schema definition in the generated schemas
-      const schemaMatch = schemasResult.content.match(
-        new RegExp(`export const ${schemaName} = ([^;]+)`),
-      );
-      const schemaCode = schemaMatch
-        ? schemaMatch[1] || "z.object({})"
-        : "z.object({})";
-
-      return {
-        operationId: op.operationId,
-        requestSchemaName: schemaName,
-        requestSchemaCode: schemaCode,
-      };
-    });
+    const mutationOps = mutations.map((op) => ({
+      operationId: op.operationId,
+      requestSchemaName: getOpenAPIRequestSchemaName(op.operationId),
+    }));
 
     const result = generateFormOptionsCode(mutationOps, {
       schemaImportPath: options.schemaImportPath,
-      allSchemas: schemasResult.content
-        .split("\n")
-        .filter((l) => l.startsWith("export const")),
+      formOverrides: options.formOverrides,
     });
 
     return {

@@ -1,10 +1,45 @@
-import { Kind, OperationTypeNode, buildSchema } from "graphql";
+import { Kind, OperationTypeNode, buildSchema, parse } from "graphql";
 import { describe, expect, it } from "vitest";
 
 import { generateGraphQLZodSchemas } from "./graphql";
 
-import type { VariableDefinitionNode } from "graphql";
-import type { ParsedDocuments, ParsedOperation } from "@/core/documents";
+import type {
+  FragmentDefinitionNode,
+  OperationDefinitionNode,
+  VariableDefinitionNode,
+} from "graphql";
+import type {
+  ParsedDocuments,
+  ParsedFragment,
+  ParsedOperation,
+} from "@/core/documents";
+
+// Helper to parse a GraphQL operation and create a ParsedOperation
+function parseOperation(
+  operationSource: string,
+  operationType: "query" | "mutation" = "query",
+): ParsedOperation {
+  const doc = parse(operationSource);
+  const opDef = doc.definitions[0] as OperationDefinitionNode;
+  return {
+    name: opDef.name?.value ?? "Anonymous",
+    operation: operationType,
+    node: opDef,
+    document: operationSource,
+  };
+}
+
+// Helper to parse a fragment
+function parseFragment(fragmentSource: string): ParsedFragment {
+  const doc = parse(fragmentSource);
+  const fragDef = doc.definitions[0] as FragmentDefinitionNode;
+  return {
+    name: fragDef.name.value,
+    typeName: fragDef.typeCondition.name.value,
+    node: fragDef,
+    document: fragmentSource,
+  };
+}
 
 describe("GraphQL Zod Generator", () => {
   const testSchema = buildSchema(`
@@ -402,6 +437,261 @@ describe("GraphQL Zod Generator", () => {
       const result = generateGraphQLZodSchemas(schemaWithID, documents);
 
       expect(result.content).toContain("id: z.string()");
+    });
+  });
+
+  describe("query response types", () => {
+    const querySchema = buildSchema(`
+      enum Status {
+        ACTIVE
+        INACTIVE
+      }
+
+      type User {
+        id: ID!
+        name: String!
+        email: String!
+        status: Status!
+      }
+
+      type Post {
+        id: ID!
+        title: String!
+        author: User!
+      }
+
+      type Query {
+        user(id: ID!): User
+        users: [User!]!
+        post(id: ID!): Post
+      }
+
+      type Mutation {
+        createUser(name: String!): User!
+      }
+    `);
+
+    it("generates query response schemas", () => {
+      const op = parseOperation(`
+        query GetUser($id: ID!) {
+          user(id: $id) {
+            id
+            name
+            email
+          }
+        }
+      `);
+      const documents: ParsedDocuments = { operations: [op], fragments: [] };
+
+      const result = generateGraphQLZodSchemas(querySchema, documents);
+
+      expect(result.content).toContain("getUserQuerySchema");
+      expect(result.content).toContain("GetUserQuery");
+    });
+
+    it("generates query variable schemas", () => {
+      const op = parseOperation(`
+        query GetUser($id: ID!) {
+          user(id: $id) {
+            id
+            name
+          }
+        }
+      `);
+      const documents: ParsedDocuments = { operations: [op], fragments: [] };
+
+      const result = generateGraphQLZodSchemas(querySchema, documents);
+
+      expect(result.content).toContain("getUserQueryVariablesSchema");
+      expect(result.content).toContain("GetUserQueryVariables");
+    });
+
+    it("generates mutation response schemas", () => {
+      const op = parseOperation(
+        `
+        mutation CreateUser($name: String!) {
+          createUser(name: $name) {
+            id
+            name
+          }
+        }
+      `,
+        "mutation",
+      );
+      const documents: ParsedDocuments = { operations: [op], fragments: [] };
+
+      const result = generateGraphQLZodSchemas(querySchema, documents);
+
+      expect(result.content).toContain("createUserMutationSchema");
+      expect(result.content).toContain("CreateUserMutation");
+    });
+
+    it("generates mutation variable schemas", () => {
+      const op = parseOperation(
+        `
+        mutation CreateUser($name: String!) {
+          createUser(name: $name) {
+            id
+          }
+        }
+      `,
+        "mutation",
+      );
+      const documents: ParsedDocuments = { operations: [op], fragments: [] };
+
+      const result = generateGraphQLZodSchemas(querySchema, documents);
+
+      expect(result.content).toContain("createUserMutationVariablesSchema");
+      expect(result.content).toContain("CreateUserMutationVariables");
+    });
+
+    it("handles nullable query results", () => {
+      const op = parseOperation(`
+        query GetUser($id: ID!) {
+          user(id: $id) {
+            id
+            name
+          }
+        }
+      `);
+      const documents: ParsedDocuments = { operations: [op], fragments: [] };
+
+      const result = generateGraphQLZodSchemas(querySchema, documents);
+
+      // user field returns User which is nullable
+      expect(result.content).toContain(".nullable()");
+    });
+
+    it("handles list query results", () => {
+      const op = parseOperation(`
+        query GetUsers {
+          users {
+            id
+            name
+          }
+        }
+      `);
+      const documents: ParsedDocuments = { operations: [op], fragments: [] };
+
+      const result = generateGraphQLZodSchemas(querySchema, documents);
+
+      expect(result.content).toContain("z.array(");
+    });
+
+    it("handles nested object selections", () => {
+      const op = parseOperation(`
+        query GetPost($id: ID!) {
+          post(id: $id) {
+            id
+            title
+            author {
+              id
+              name
+            }
+          }
+        }
+      `);
+      const documents: ParsedDocuments = { operations: [op], fragments: [] };
+
+      const result = generateGraphQLZodSchemas(querySchema, documents);
+
+      // Should have nested author object
+      expect(result.content).toContain("author:");
+    });
+  });
+
+  describe("fragment handling", () => {
+    const fragmentSchema = buildSchema(`
+      type User {
+        id: ID!
+        name: String!
+        email: String!
+      }
+
+      type Query {
+        user(id: ID!): User
+      }
+    `);
+
+    it("generates fragment schemas", () => {
+      const fragment = parseFragment(`
+        fragment UserFields on User {
+          id
+          name
+          email
+        }
+      `);
+      const op = parseOperation(`
+        query GetUser($id: ID!) {
+          user(id: $id) {
+            ...UserFields
+          }
+        }
+      `);
+      const documents: ParsedDocuments = {
+        operations: [op],
+        fragments: [fragment],
+      };
+
+      const result = generateGraphQLZodSchemas(fragmentSchema, documents);
+
+      expect(result.content).toContain("userFieldsFragmentSchema");
+      expect(result.content).toContain("UserFieldsFragment");
+    });
+
+    it("uses fragment spread in operation schemas", () => {
+      const fragment = parseFragment(`
+        fragment UserFields on User {
+          id
+          name
+        }
+      `);
+      const op = parseOperation(`
+        query GetUser($id: ID!) {
+          user(id: $id) {
+            ...UserFields
+          }
+        }
+      `);
+      const documents: ParsedDocuments = {
+        operations: [op],
+        fragments: [fragment],
+      };
+
+      const result = generateGraphQLZodSchemas(fragmentSchema, documents);
+
+      // Operation should reference fragment schema
+      expect(result.content).toContain("userFieldsFragmentSchema.shape");
+    });
+  });
+
+  describe("type exports", () => {
+    it("exports TypeScript types inferred from schemas", () => {
+      const schema = buildSchema(`
+        enum Role { ADMIN USER }
+        input CreateUserInput { name: String! role: Role }
+        type User { id: ID! name: String! }
+        type Query { user: User }
+        type Mutation { createUser(input: CreateUserInput!): User! }
+      `);
+
+      const op = parseOperation(
+        `
+        mutation CreateUser($input: CreateUserInput!) {
+          createUser(input: $input) { id name }
+        }
+      `,
+        "mutation",
+      );
+      const documents: ParsedDocuments = { operations: [op], fragments: [] };
+
+      const result = generateGraphQLZodSchemas(schema, documents);
+
+      // Should have type exports section
+      expect(result.content).toContain("// TypeScript Types");
+      expect(result.content).toContain("z.infer<typeof");
+      expect(result.content).toContain("export type Role");
+      expect(result.content).toContain("export type CreateUserInput");
     });
   });
 });

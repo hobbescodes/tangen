@@ -18,17 +18,17 @@ Install the required dependencies based on your data source:
 <Tabs items={['bun', 'npm', 'pnpm']}>
   <Tab value="bun">
 ```bash
-bun add @tanstack/react-query
+bun add @tanstack/react-query zod
 ```
   </Tab>
   <Tab value="npm">
 ```bash
-npm install @tanstack/react-query
+npm install @tanstack/react-query zod
 ```
   </Tab>
   <Tab value="pnpm">
 ```bash
-pnpm add @tanstack/react-query
+pnpm add @tanstack/react-query zod
 ```
   </Tab>
 </Tabs>
@@ -58,17 +58,17 @@ pnpm add graphql-request
 <Tabs items={['bun', 'npm', 'pnpm']}>
   <Tab value="bun">
 ```bash
-bun add @better-fetch/fetch zod
+bun add @better-fetch/fetch
 ```
   </Tab>
   <Tab value="npm">
 ```bash
-npm install @better-fetch/fetch zod
+npm install @better-fetch/fetch
 ```
   </Tab>
   <Tab value="pnpm">
 ```bash
-pnpm add @better-fetch/fetch zod
+pnpm add @better-fetch/fetch
 ```
   </Tab>
 </Tabs>
@@ -191,10 +191,9 @@ bunx tangrams generate
 src/generated/
 └── <source>/
     ├── client.ts             # API client (shared)
-    ├── schema.ts             # Zod schemas (OpenAPI always, GraphQL when form/db enabled)
+    ├── schema.ts             # Zod schemas + TypeScript types (inferred via z.infer)
     ├── functions.ts          # Standalone fetch functions (auto-generated)
     └── query/
-        ├── types.ts          # TypeScript types (GraphQL only)
         └── operations.ts     # queryOptions and mutationOptions
 ```
 
@@ -216,39 +215,47 @@ export const getClient = async () => {
 }
 ```
 
-**`types.ts`** - TypeScript types from your schema and operations:
+**`schema.ts`** - Zod schemas and TypeScript types from your schema and operations:
 
 ```typescript
-// Operation types
-export type GetUserQueryVariables = { id: string }
-export type GetUserQuery = {
-  user: { id: string; name: string; email: string } | null
-}
+import * as z from "zod"
 
-export type CreateUserMutationVariables = { input: CreateUserInput }
-export type CreateUserMutation = {
-  createUser: { id: string; name: string }
-}
+// Operation variable schemas
+export const getUserQueryVariablesSchema = z.object({
+  id: z.string(),
+})
+
+// Operation response schemas
+export const getUserQuerySchema = z.object({
+  user: z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string(),
+  }).nullable(),
+})
+
+// TypeScript Types (inferred from Zod schemas)
+export type GetUserQueryVariables = z.infer<typeof getUserQueryVariablesSchema>
+export type GetUserQuery = z.infer<typeof getUserQuerySchema>
 ```
 
 **`operations.ts`** - Ready-to-use query and mutation options:
 
 ```typescript
+import { queryOptions, mutationOptions } from "@tanstack/react-query"
+import { getUser, createUser } from "../functions"
+import type { GetUserQueryVariables, CreateUserMutationVariables } from "../schema"
+
 export const getUserQueryOptions = (variables: GetUserQueryVariables) =>
   queryOptions({
     queryKey: ["graphql", "GetUser", variables],
-    queryFn: async () =>
-      (await getClient()).request<GetUserQuery>(GetUserDocument, variables),
+    queryFn: () => getUser(variables),
   })
 
 export const createUserMutationOptions = () =>
   mutationOptions({
     mutationKey: ["graphql", "CreateUser"],
-    mutationFn: async (variables: CreateUserMutationVariables) =>
-      (await getClient()).request<CreateUserMutation>(
-        CreateUserDocument,
-        variables
-      ),
+    mutationFn: (variables: CreateUserMutationVariables) => createUser(variables),
   })
 ```
 

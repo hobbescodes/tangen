@@ -4,6 +4,15 @@
  */
 
 /**
+ * A schema entry with its dependencies for topological sorting
+ */
+export interface SchemaEntry {
+  name: string;
+  zodType: string;
+  dependencies: Set<string>;
+}
+
+/**
  * Context for Zod schema generation
  * Tracks generated schemas to avoid duplicates and handle dependencies
  */
@@ -12,8 +21,8 @@ export interface ZodGenContext {
   generatedSchemas: Set<string>;
   /** Track schemas that need to be generated (dependencies) */
   pendingSchemas: Map<string, unknown>;
-  /** Generated Zod schema definitions */
-  zodSchemas: string[];
+  /** Schema entries with dependency info for topological sorting */
+  schemaEntries: Map<string, SchemaEntry>;
   /** Generated TypeScript type exports (inferred from Zod) */
   typeExports: string[];
   /** Warnings during generation */
@@ -27,7 +36,7 @@ export function createZodGenContext(): ZodGenContext {
   return {
     generatedSchemas: new Set(),
     pendingSchemas: new Map(),
-    zodSchemas: [],
+    schemaEntries: new Map(),
     typeExports: [],
     warnings: [],
   };
@@ -91,15 +100,85 @@ export function generateZodFileHeader(): string[] {
 }
 
 /**
+ * Extract dependencies from a Zod type string
+ * Finds references to other schemas (e.g., "petCategorySchema" in a type)
+ */
+export function extractDependencies(zodType: string): Set<string> {
+  const deps = new Set<string>();
+  // Match schema references like "petCategorySchema", "userSchema", etc.
+  const schemaRefPattern = /([a-z][a-zA-Z0-9]*)Schema/g;
+  let match = schemaRefPattern.exec(zodType);
+  while (match !== null) {
+    // Convert schema variable name back to type name
+    const schemaVarName = match[0];
+    // Extract the base name (e.g., "petCategory" from "petCategorySchema")
+    const baseName = schemaVarName.replace(/Schema$/, "");
+    // Convert to PascalCase for the type name
+    const typeName = baseName.charAt(0).toUpperCase() + baseName.slice(1);
+    deps.add(typeName);
+    match = schemaRefPattern.exec(zodType);
+  }
+  return deps;
+}
+
+/**
+ * Topologically sort schema entries so dependencies come before dependents
+ */
+export function topologicalSortSchemas(
+  entries: Map<string, SchemaEntry>,
+): SchemaEntry[] {
+  const result: SchemaEntry[] = [];
+  const visited = new Set<string>();
+  const visiting = new Set<string>(); // For cycle detection
+
+  function visit(name: string): void {
+    if (visited.has(name)) return;
+    if (visiting.has(name)) {
+      // Cycle detected - just return, the schema will be emitted where it is
+      return;
+    }
+
+    const entry = entries.get(name);
+    if (!entry) return;
+
+    visiting.add(name);
+
+    // Visit dependencies first
+    for (const dep of entry.dependencies) {
+      if (entries.has(dep)) {
+        visit(dep);
+      }
+    }
+
+    visiting.delete(name);
+    visited.add(name);
+    result.push(entry);
+  }
+
+  // Visit all entries
+  for (const name of entries.keys()) {
+    visit(name);
+  }
+
+  return result;
+}
+
+/**
  * Build the final output from a Zod generation context
  */
 export function buildZodOutput(ctx: ZodGenContext): string {
   const lines: string[] = generateZodFileHeader();
 
-  // Add Zod schemas
-  if (ctx.zodSchemas.length > 0) {
+  // Topologically sort schemas so dependencies come first
+  const sortedSchemas = topologicalSortSchemas(ctx.schemaEntries);
+
+  // Add Zod schemas in dependency order
+  if (sortedSchemas.length > 0) {
     lines.push("// Zod Schemas");
-    lines.push(...ctx.zodSchemas);
+    for (const entry of sortedSchemas) {
+      const schemaVarName = toSchemaName(entry.name);
+      lines.push(`export const ${schemaVarName} = ${entry.zodType}`);
+    }
     lines.push("");
   }
 
@@ -114,7 +193,7 @@ export function buildZodOutput(ctx: ZodGenContext): string {
 }
 
 /**
- * Add a schema to the context
+ * Add a schema to the context with dependency tracking
  */
 export function addSchemaToContext(
   ctx: ZodGenContext,
@@ -124,9 +203,21 @@ export function addSchemaToContext(
   if (ctx.generatedSchemas.has(typeName)) return;
 
   ctx.generatedSchemas.add(typeName);
-  const schemaVarName = toSchemaName(typeName);
 
-  ctx.zodSchemas.push(`export const ${schemaVarName} = ${zodType}`);
+  // Extract dependencies from the zod type
+  const dependencies = extractDependencies(zodType);
+  // Remove self-reference
+  dependencies.delete(typeName);
+
+  // Add to schema entries for topological sorting
+  ctx.schemaEntries.set(typeName, {
+    name: typeName,
+    zodType,
+    dependencies,
+  });
+
+  // Add type export
+  const schemaVarName = toSchemaName(typeName);
   ctx.typeExports.push(
     `export type ${typeName} = z.infer<typeof ${schemaVarName}>`,
   );
@@ -140,4 +231,88 @@ export function isSchemaReference(zodType: string): boolean {
   return (
     !zodType.startsWith("z.") && /^[A-Za-z][A-Za-z0-9]*Schema$/.test(zodType)
   );
+}
+
+// ============================================================================
+// GraphQL-specific naming utilities
+// ============================================================================
+
+/**
+ * Convert a GraphQL operation name to a query variables schema name
+ * e.g., "GetPets" -> "getPetsQueryVariablesSchema"
+ */
+export function toQueryVariablesSchemaName(operationName: string): string {
+  return `${toCamelCase(operationName)}QueryVariablesSchema`;
+}
+
+/**
+ * Convert a GraphQL operation name to a mutation variables schema name
+ * e.g., "CreatePet" -> "createPetMutationVariablesSchema"
+ */
+export function toMutationVariablesSchemaName(operationName: string): string {
+  return `${toCamelCase(operationName)}MutationVariablesSchema`;
+}
+
+/**
+ * Convert a GraphQL operation name to a query response schema name
+ * e.g., "GetPets" -> "getPetsQuerySchema"
+ */
+export function toQueryResponseSchemaName(operationName: string): string {
+  return `${toCamelCase(operationName)}QuerySchema`;
+}
+
+/**
+ * Convert a GraphQL operation name to a mutation response schema name
+ * e.g., "CreatePet" -> "createPetMutationSchema"
+ */
+export function toMutationResponseSchemaName(operationName: string): string {
+  return `${toCamelCase(operationName)}MutationSchema`;
+}
+
+/**
+ * Convert a GraphQL fragment name to a fragment schema name
+ * e.g., "PetFields" -> "petFieldsFragmentSchema"
+ */
+export function toFragmentSchemaName(fragmentName: string): string {
+  return `${toCamelCase(fragmentName)}FragmentSchema`;
+}
+
+/**
+ * Convert a GraphQL operation name to a query variables type name
+ * e.g., "GetPets" -> "GetPetsQueryVariables"
+ */
+export function toQueryVariablesTypeName(operationName: string): string {
+  return `${toPascalCase(operationName)}QueryVariables`;
+}
+
+/**
+ * Convert a GraphQL operation name to a mutation variables type name
+ * e.g., "CreatePet" -> "CreatePetMutationVariables"
+ */
+export function toMutationVariablesTypeName(operationName: string): string {
+  return `${toPascalCase(operationName)}MutationVariables`;
+}
+
+/**
+ * Convert a GraphQL operation name to a query response type name
+ * e.g., "GetPets" -> "GetPetsQuery"
+ */
+export function toQueryResponseTypeName(operationName: string): string {
+  return `${toPascalCase(operationName)}Query`;
+}
+
+/**
+ * Convert a GraphQL operation name to a mutation response type name
+ * e.g., "CreatePet" -> "CreatePetMutation"
+ */
+export function toMutationResponseTypeName(operationName: string): string {
+  return `${toPascalCase(operationName)}Mutation`;
+}
+
+/**
+ * Convert a GraphQL fragment name to a fragment type name
+ * e.g., "PetFields" -> "PetFieldsFragment"
+ */
+export function toFragmentTypeName(fragmentName: string): string {
+  return `${toPascalCase(fragmentName)}Fragment`;
 }

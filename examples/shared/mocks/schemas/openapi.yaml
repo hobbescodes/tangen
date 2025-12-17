@@ -1,0 +1,496 @@
+openapi: 3.1.0
+info:
+  title: Pet Store API
+  description: A simple Pet Store API for tangrams examples
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      summary: List all pets
+      description: Returns a list of all pets, optionally filtered by status or category
+      tags:
+        - pets
+      parameters:
+        - name: status
+          in: query
+          description: Filter by pet status
+          required: false
+          schema:
+            $ref: "#/components/schemas/PetStatus"
+        - name: category
+          in: query
+          description: Filter by pet category
+          required: false
+          schema:
+            $ref: "#/components/schemas/PetCategory"
+        - name: limit
+          in: query
+          description: Maximum number of pets to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of pets to skip
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: A list of pets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Pet"
+                  total:
+                    type: integer
+                    description: Total number of pets matching the filter
+                required:
+                  - data
+                  - total
+    post:
+      operationId: createPet
+      summary: Create a new pet
+      description: Creates a new pet in the store
+      tags:
+        - pets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePetInput"
+      responses:
+        "201":
+          description: The created pet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pet"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /pets/{petId}:
+    get:
+      operationId: getPet
+      summary: Get a pet by ID
+      description: Returns a single pet by its ID
+      tags:
+        - pets
+      parameters:
+        - name: petId
+          in: path
+          description: ID of the pet to retrieve
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The requested pet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pet"
+        "404":
+          description: Pet not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      operationId: updatePet
+      summary: Update a pet
+      description: Updates an existing pet
+      tags:
+        - pets
+      parameters:
+        - name: petId
+          in: path
+          description: ID of the pet to update
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePetInput"
+      responses:
+        "200":
+          description: The updated pet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pet"
+        "404":
+          description: Pet not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deletePet
+      summary: Delete a pet
+      description: Deletes a pet from the store
+      tags:
+        - pets
+      parameters:
+        - name: petId
+          in: path
+          description: ID of the pet to delete
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Pet deleted successfully
+        "404":
+          description: Pet not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /users:
+    get:
+      operationId: listUsers
+      summary: List all users
+      description: Returns a list of all users
+      tags:
+        - users
+      parameters:
+        - name: role
+          in: query
+          description: Filter by user role
+          required: false
+          schema:
+            $ref: "#/components/schemas/UserRole"
+        - name: limit
+          in: query
+          description: Maximum number of users to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of users to skip
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: A list of users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/User"
+                  total:
+                    type: integer
+                    description: Total number of users matching the filter
+                required:
+                  - data
+                  - total
+    post:
+      operationId: createUser
+      summary: Create a new user
+      description: Creates a new user
+      tags:
+        - users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserInput"
+      responses:
+        "201":
+          description: The created user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /users/{userId}:
+    get:
+      operationId: getUser
+      summary: Get a user by ID
+      description: Returns a single user by their ID
+      tags:
+        - users
+      parameters:
+        - name: userId
+          in: path
+          description: ID of the user to retrieve
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The requested user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      operationId: updateUser
+      summary: Update a user
+      description: Updates an existing user
+      tags:
+        - users
+      parameters:
+        - name: userId
+          in: path
+          description: ID of the user to update
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserInput"
+      responses:
+        "200":
+          description: The updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteUser
+      summary: Delete a user
+      description: Deletes a user
+      tags:
+        - users
+      parameters:
+        - name: userId
+          in: path
+          description: ID of the user to delete
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: User deleted successfully
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    PetStatus:
+      type: string
+      enum:
+        - available
+        - pending
+        - sold
+
+    PetCategory:
+      type: string
+      enum:
+        - dog
+        - cat
+        - bird
+        - fish
+        - reptile
+
+    Pet:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        category:
+          $ref: "#/components/schemas/PetCategory"
+        status:
+          $ref: "#/components/schemas/PetStatus"
+        tags:
+          type: array
+          items:
+            type: string
+        photoUrl:
+          type: string
+          format: uri
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - category
+        - status
+        - tags
+        - createdAt
+        - updatedAt
+
+    CreatePetInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        category:
+          $ref: "#/components/schemas/PetCategory"
+        status:
+          $ref: "#/components/schemas/PetStatus"
+        tags:
+          type: array
+          items:
+            type: string
+        photoUrl:
+          type: string
+          format: uri
+      required:
+        - name
+        - category
+        - status
+        - tags
+
+    UpdatePetInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        category:
+          $ref: "#/components/schemas/PetCategory"
+        status:
+          $ref: "#/components/schemas/PetStatus"
+        tags:
+          type: array
+          items:
+            type: string
+        photoUrl:
+          type: string
+          format: uri
+
+    UserRole:
+      type: string
+      enum:
+        - admin
+        - user
+        - guest
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          $ref: "#/components/schemas/UserRole"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - name
+        - role
+        - createdAt
+        - updatedAt
+
+    CreateUserInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        role:
+          $ref: "#/components/schemas/UserRole"
+      required:
+        - email
+        - name
+        - role
+
+    UpdateUserInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        role:
+          $ref: "#/components/schemas/UserRole"
+
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+        code:
+          type: string
+      required:
+        - message

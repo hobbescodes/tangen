@@ -14,18 +14,11 @@ describe("generateFormOptionsCode", () => {
       {
         operationId: "createUser",
         requestSchemaName: "createUserRequestSchema",
-        requestSchemaCode: `z.object({
-  name: z.string(),
-  email: z.string()
-})`,
       },
     ];
 
     const result = generateFormOptionsCode(mutations, {
       schemaImportPath: "./types",
-      allSchemas: [
-        "export const createUserRequestSchema = z.object({ name: z.string(), email: z.string() })",
-      ],
     });
 
     expect(result.content).toContain("/* eslint-disable */");
@@ -35,8 +28,12 @@ describe("generateFormOptionsCode", () => {
     expect(result.content).toContain(
       'import { createUserRequestSchema } from "./types"',
     );
+    // Should import the type for type assertion
+    expect(result.content).toContain(
+      'import type { CreateUserRequest } from "./types"',
+    );
     expect(result.content).toContain("export const createUserFormOptions");
-    expect(result.content).toContain("defaultValues:");
+    expect(result.content).toContain("defaultValues: {} as CreateUserRequest");
     expect(result.content).toContain("validators:");
     expect(result.content).toContain("onSubmitAsync: createUserRequestSchema");
     expect(result.warnings).toHaveLength(0);
@@ -47,18 +44,15 @@ describe("generateFormOptionsCode", () => {
       {
         operationId: "createUser",
         requestSchemaName: "createUserRequestSchema",
-        requestSchemaCode: "z.object({ name: z.string() })",
       },
       {
         operationId: "updateUser",
         requestSchemaName: "updateUserRequestSchema",
-        requestSchemaCode: "z.object({ id: z.string(), name: z.string() })",
       },
     ];
 
     const result = generateFormOptionsCode(mutations, {
       schemaImportPath: "./types",
-      allSchemas: [],
     });
 
     expect(result.content).toContain("createUserFormOptions");
@@ -66,12 +60,15 @@ describe("generateFormOptionsCode", () => {
     expect(result.content).toContain(
       "import { createUserRequestSchema, updateUserRequestSchema }",
     );
+    // Should import types for both mutations
+    expect(result.content).toContain(
+      "import type { CreateUserRequest, UpdateUserRequest }",
+    );
   });
 
   it("returns empty file with warning when no mutations provided", () => {
     const result = generateFormOptionsCode([], {
       schemaImportPath: "./types",
-      allSchemas: [],
     });
 
     expect(result.content).toContain("/* eslint-disable */");
@@ -80,49 +77,23 @@ describe("generateFormOptionsCode", () => {
     expect(result.warnings[0]).toContain("No mutations found");
   });
 
-  it("handles complex nested object schemas for default values", () => {
+  it("generates empty object as default values", () => {
     const mutations = [
       {
         operationId: "createPost",
         requestSchemaName: "createPostRequestSchema",
-        requestSchemaCode: `z.object({
-  title: z.string(),
-  content: z.string(),
-  tags: z.array(z.string())
-})`,
       },
     ];
 
     const result = generateFormOptionsCode(mutations, {
       schemaImportPath: "../schema/types",
-      allSchemas: [],
     });
 
     expect(result.content).toContain("createPostFormOptions");
     expect(result.content).toContain(
       'import { createPostRequestSchema } from "../schema/types"',
     );
-    expect(result.warnings).toHaveLength(0);
-  });
-
-  it("handles unknown schema types gracefully", () => {
-    const mutations = [
-      {
-        operationId: "createItem",
-        requestSchemaName: "createItemRequestSchema",
-        // Unknown/unrecognized schema code
-        requestSchemaCode: "z.unknown()",
-      },
-    ];
-
-    const result = generateFormOptionsCode(mutations, {
-      schemaImportPath: "./types",
-      allSchemas: [],
-    });
-
-    // Should still generate form options with null default values for unknown types
-    expect(result.content).toContain("createItemFormOptions");
-    expect(result.content).toContain("defaultValues: null");
+    expect(result.content).toContain("defaultValues: {} as CreatePostRequest");
     expect(result.warnings).toHaveLength(0);
   });
 
@@ -131,13 +102,11 @@ describe("generateFormOptionsCode", () => {
       {
         operationId: "CreateNewUser",
         requestSchemaName: "createNewUserRequestSchema",
-        requestSchemaCode: "z.object({ name: z.string() })",
       },
     ];
 
     const result = generateFormOptionsCode(mutations, {
       schemaImportPath: "./types",
-      allSchemas: [],
     });
 
     expect(result.content).toContain("createNewUserFormOptions");
@@ -254,5 +223,130 @@ describe("getGraphQLInputSchemaName", () => {
     expect(getGraphQLInputSchemaName("UpdatePostInput")).toBe(
       "updatePostInputSchema",
     );
+  });
+});
+
+describe("generateFormOptionsCode with validator config", () => {
+  const mutations = [
+    {
+      operationId: "createUser",
+      requestSchemaName: "createUserRequestSchema",
+    },
+  ];
+
+  it("uses onSubmitAsync by default", () => {
+    const result = generateFormOptionsCode(mutations, {
+      schemaImportPath: "./types",
+    });
+
+    expect(result.content).toContain("onSubmitAsync: createUserRequestSchema");
+    expect(result.content).not.toContain("revalidateLogic");
+    expect(result.content).not.toContain("validationLogic:");
+  });
+
+  it("uses onChange validator when configured", () => {
+    const result = generateFormOptionsCode(mutations, {
+      schemaImportPath: "./types",
+      formOverrides: { validator: "onChange" },
+    });
+
+    expect(result.content).toContain("onChange: createUserRequestSchema");
+    expect(result.content).not.toContain("onSubmitAsync");
+  });
+
+  it("uses onChangeAsync validator when configured", () => {
+    const result = generateFormOptionsCode(mutations, {
+      schemaImportPath: "./types",
+      formOverrides: { validator: "onChangeAsync" },
+    });
+
+    expect(result.content).toContain("onChangeAsync: createUserRequestSchema");
+  });
+
+  it("uses onBlur validator when configured", () => {
+    const result = generateFormOptionsCode(mutations, {
+      schemaImportPath: "./types",
+      formOverrides: { validator: "onBlur" },
+    });
+
+    expect(result.content).toContain("onBlur: createUserRequestSchema");
+  });
+
+  it("uses onBlurAsync validator when configured", () => {
+    const result = generateFormOptionsCode(mutations, {
+      schemaImportPath: "./types",
+      formOverrides: { validator: "onBlurAsync" },
+    });
+
+    expect(result.content).toContain("onBlurAsync: createUserRequestSchema");
+  });
+
+  it("uses onSubmit validator when configured", () => {
+    const result = generateFormOptionsCode(mutations, {
+      schemaImportPath: "./types",
+      formOverrides: { validator: "onSubmit" },
+    });
+
+    expect(result.content).toContain("onSubmit: createUserRequestSchema");
+    expect(result.content).not.toContain("onSubmitAsync");
+  });
+
+  it("uses onDynamic validator with revalidateLogic", () => {
+    const result = generateFormOptionsCode(mutations, {
+      schemaImportPath: "./types",
+      formOverrides: { validator: "onDynamic" },
+    });
+
+    expect(result.content).toContain(
+      'import { formOptions, revalidateLogic } from "@tanstack/react-form"',
+    );
+    expect(result.content).toContain("onDynamic: createUserRequestSchema");
+    expect(result.content).toContain(
+      'validationLogic: revalidateLogic({ mode: "submit", modeAfterSubmission: "change" })',
+    );
+  });
+
+  it("uses custom validationLogic modes for onDynamic", () => {
+    const result = generateFormOptionsCode(mutations, {
+      schemaImportPath: "./types",
+      formOverrides: {
+        validator: "onDynamic",
+        validationLogic: { mode: "blur", modeAfterSubmission: "blur" },
+      },
+    });
+
+    expect(result.content).toContain(
+      'validationLogic: revalidateLogic({ mode: "blur", modeAfterSubmission: "blur" })',
+    );
+  });
+
+  it("warns when validationLogic is set but validator is not onDynamic", () => {
+    const result = generateFormOptionsCode(mutations, {
+      schemaImportPath: "./types",
+      formOverrides: {
+        validator: "onChangeAsync",
+        validationLogic: { mode: "blur", modeAfterSubmission: "change" },
+      },
+    });
+
+    expect(result.content).toContain("onChangeAsync: createUserRequestSchema");
+    expect(result.content).not.toContain("validationLogic:");
+    expect(result.content).not.toContain("revalidateLogic");
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain(
+      'validationLogic is only used with "onDynamic" validator',
+    );
+  });
+
+  it("does not import revalidateLogic when not using onDynamic", () => {
+    const result = generateFormOptionsCode(mutations, {
+      schemaImportPath: "./types",
+      formOverrides: { validator: "onBlurAsync" },
+    });
+
+    expect(result.content).toContain(
+      'import { formOptions } from "@tanstack/react-form"',
+    );
+    expect(result.content).not.toContain("revalidateLogic");
   });
 });

@@ -1,11 +1,11 @@
 ---
 title: Getting Started
-description: Assemble type-safe pieces for your TanStack data layer.
+description: Assemble type-safe TanStack pieces for your data layers.
 ---
 
 # Assemble the Pieces
 
-Every data layer is a puzzle. Your API schema defines the shapes, but you still need perfectly-fitting pieces for your TanStack applications - type-safe `queryOptions`, `mutationOptions`, and `formOptions` that snap right into place.
+Every data layer is a puzzle. Your API schema defines the shapes, but you still need perfectly-fitting pieces for your applications - TanStack provides type-safe `queryOptions`, `mutationOptions`, `formOptions`, etc that snap right into place.
 
 **Tangrams** generates those pieces from your GraphQL or OpenAPI schemas.
 
@@ -55,12 +55,12 @@ pnpm add -D tangrams
   </Tab>
 </Tabs>
 
-Additional peer dependencies are required based on which TanStack library you're generating for. See the [TanStack Query](/docs/tanstack-query) and [TanStack Form](/docs/tanstack-form) guides for details.
+Additional peer dependencies are required based on which TanStack library you're generating for. See the individual library guides for details.
 
 ## How It Works
 
 1. **Bring your schema** - Point Tangrams at your GraphQL SDL or OpenAPI spec
-2. **Configure what to generate** - Choose which pieces you need (Query, Form, or both)
+2. **Configure what to generate** - Choose which pieces you need (Query, Form, and DB are currently supported)
 3. **Run the generator** - Get fully-typed, ready-to-use code
 4. **Import and use** - The pieces fit perfectly into your TanStack hooks
 

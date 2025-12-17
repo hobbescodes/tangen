@@ -7,16 +7,12 @@ import consola from "consola";
 import { getAdapter } from "@/adapters";
 import {
   getDbCollectionOverrides,
+  getFormOverrides,
   getScalarsFromSource,
   normalizeGenerates,
 } from "./config";
 
-import type { GraphQLAdapter, GraphQLAdapterSchema } from "@/adapters/types";
-import type {
-  GraphQLSourceConfig,
-  SourceConfig,
-  TangramsConfig,
-} from "./config";
+import type { SourceConfig, TangramsConfig } from "./config";
 
 // =============================================================================
 // Hardcoded File Names
@@ -78,10 +74,9 @@ async function fileExists(path: string): Promise<boolean> {
  * Output structure:
  *   <output>/<source-name>/
  *     ├── client.ts          # shared client (always)
- *     ├── schema.ts          # zod schemas (when needed)
+ *     ├── schema.ts          # zod schemas + inferred types (when query/form/db enabled)
  *     ├── functions.ts       # standalone fetch functions (when query/db enabled)
  *     ├── query/
- *     │   ├── types.ts       # GraphQL only
  *     │   └── operations.ts  # TanStack Query options
  *     ├── form/
  *     │   └── forms.ts
@@ -128,10 +123,11 @@ export async function generate(
 
     // Determine if we need to generate Zod schemas
     // - OpenAPI: Always (Zod is the primary type system)
-    // - GraphQL: When form or db generation is enabled
+    // - GraphQL: Always when query/form/db is enabled (schema.ts contains all types)
     const needsZodSchemas =
       source.type === "openapi" ||
-      (source.type === "graphql" && (generates.form || generates.db));
+      (source.type === "graphql" &&
+        (generates.query || generates.form || generates.db));
 
     // Track paths for import resolution
     let schemaPath: string | undefined;
@@ -190,22 +186,14 @@ export async function generate(
     }
 
     // Step 6: Generate db files if enabled
-    if (generates.db && functionsPath) {
-      // Determine types path
-      const typesPath =
-        source.type === "graphql"
-          ? join(sourceOutputDir, "query", FILES.query.types)
-          : schemaPath;
-
-      if (typesPath) {
-        await generateDbFiles({
-          source,
-          sourceOutputDir,
-          schema,
-          typesPath,
-        });
-        dbSourceNames.push(source.name);
-      }
+    if (generates.db && functionsPath && schemaPath) {
+      await generateDbFiles({
+        source,
+        sourceOutputDir,
+        schema,
+        typesPath: schemaPath,
+      });
+      dbSourceNames.push(source.name);
     }
   }
 
@@ -340,21 +328,13 @@ async function generateFunctionsFile(
   const functionsDir = dirname(functionsPath);
   const clientImportPath = `./${relative(functionsDir, clientPath).replace(/\.ts$/, "")}`;
 
-  // For types, GraphQL uses query/types.ts, OpenAPI uses schema.ts
-  let typesImportPath: string;
-  if (source.type === "graphql") {
-    // GraphQL types will be at ./query/types (subdirectory)
-    const typesPath = join(sourceOutputDir, "query", FILES.query.types);
-    typesImportPath = `./${relative(functionsDir, typesPath).replace(/\.ts$/, "")}`;
-  } else {
-    // OpenAPI uses schema.ts at source root
-    if (!schemaPath) {
-      throw new Error(
-        `OpenAPI source "${source.name}" requires schema file for functions generation`,
-      );
-    }
-    typesImportPath = `./${relative(functionsDir, schemaPath).replace(/\.ts$/, "")}`;
+  // Both GraphQL and OpenAPI now use schema.ts for types
+  if (!schemaPath) {
+    throw new Error(
+      `Source "${source.name}" requires schema file for functions generation`,
+    );
   }
+  const typesImportPath = `./${relative(functionsDir, schemaPath).replace(/\.ts$/, "")}`;
 
   const functionsResult = adapter.generateFunctions(schema, source, {
     clientImportPath,
@@ -381,9 +361,8 @@ interface GenerateQueryFilesOptions {
 
 /**
  * Generate query files for a source
- * Outputs to: <source-name>/query/
- *   - types.ts (GraphQL only - OpenAPI uses schema.ts at source root)
- *   - operations.ts
+ * Outputs to: <source-name>/query/operations.ts
+ * Types now come from schema.ts at source root for all source types
  */
 async function generateQueryFiles(
   options: GenerateQueryFilesOptions,
@@ -398,49 +377,19 @@ async function generateQueryFiles(
   // Ensure output directory exists
   await mkdir(queryOutputDir, { recursive: true });
 
-  // Step 1: Determine types path
-  // - GraphQL: Generate types.ts in query/
-  // - OpenAPI: Use schema.ts at source root
-  let typesPath: string;
-
-  if (source.type === "graphql") {
-    // GraphQL generates TypeScript types
-    const graphqlAdapter = adapter as GraphQLAdapter;
-    const typeGenOptions = {
-      scalars: getScalarsFromSource(source),
-    };
-    const typesResult = graphqlAdapter.generateTypes(
-      schema as GraphQLAdapterSchema,
-      source as GraphQLSourceConfig,
-      typeGenOptions,
+  // Types now come from schema.ts for all source types
+  if (!schemaPath) {
+    throw new Error(
+      `Source "${source.name}" requires schema file but none was generated`,
     );
-
-    // Log any warnings
-    if (typesResult.warnings) {
-      for (const warning of typesResult.warnings) {
-        consola.warn(warning);
-      }
-    }
-
-    typesPath = join(queryOutputDir, FILES.query.types);
-    await writeFile(typesPath, typesResult.content, "utf-8");
-    consola.success(`Generated ${source.name}/query/${FILES.query.types}`);
-  } else {
-    // OpenAPI uses schema.ts at source root
-    if (!schemaPath) {
-      throw new Error(
-        `OpenAPI source "${source.name}" requires schema file but none was generated`,
-      );
-    }
-    typesPath = schemaPath;
   }
 
-  // Step 2: Generate operations
+  // Generate operations
   const operationsPath = join(queryOutputDir, FILES.query.operations);
 
-  // Calculate relative import paths
+  // Calculate relative import paths (from query/ to schema.ts at source root)
   const operationsDir = dirname(operationsPath);
-  const typesImportPath = `./${relative(operationsDir, typesPath).replace(/\.ts$/, "")}`;
+  const typesImportPath = `./${relative(operationsDir, schemaPath).replace(/\.ts$/, "")}`;
 
   const operationsResult = adapter.generateOperations(schema, source, {
     typesImportPath,
@@ -488,6 +437,7 @@ async function generateFormFiles(
   const formResult = adapter.generateFormOptions(schema, source, {
     schemaImportPath,
     sourceName: source.name,
+    formOverrides: getFormOverrides(source),
   });
 
   // Log any warnings
@@ -509,7 +459,7 @@ interface GenerateDbFilesOptions {
   source: SourceConfig;
   sourceOutputDir: string;
   schema: unknown;
-  /** Path to types file (query/types.ts for GraphQL, schema.ts for OpenAPI) */
+  /** Path to types file (schema.ts for all source types) */
   typesPath: string;
 }
 
