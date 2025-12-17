@@ -48,7 +48,7 @@ Install dependencies based on what you're generating:
 **TanStack Query (`generates` includes `"query"`):**
 
 ```bash
-bun add @tanstack/react-query
+bun add @tanstack/react-query zod
 ```
 
 **TanStack Form (`generates` includes `"form"`):**
@@ -61,6 +61,7 @@ bun add @tanstack/react-form zod
 
 ```bash
 bun add @tanstack/react-db @tanstack/query-db-collection @tanstack/react-query
+zod
 ```
 
 **GraphQL sources (when generating `"query"`):**
@@ -72,7 +73,7 @@ bun add graphql-request
 **OpenAPI sources (when generating `"query"`):**
 
 ```bash
-bun add @better-fetch/fetch zod
+bun add @better-fetch/fetch
 ```
 
 ## Quick Start
@@ -329,14 +330,14 @@ The `functions.ts` file (containing standalone fetch functions) is automatically
 
 ### GraphQL Source Options
 
-| Option      | Type                     | Required | Description                                    |
-| ----------- | ------------------------ | -------- | ---------------------------------------------- |
-| `name`      | `string`                 | Yes      | Unique name for this source                    |
-| `type`      | `"graphql"`              | Yes      | Source type                                    |
-| `schema`    | `object`                 | Yes      | Schema configuration (see below)               |
-| `documents` | `string \| string[]`     | Yes      | Glob pattern(s) for `.graphql` operation files |
-| `generates` | `array`                  | Yes      | What to generate: `["query", "form", "db"]`    |
-| `overrides` | `object`                 | No       | Override scalars and DB collection settings    |
+| Option      | Type                 | Required | Description                                    |
+| ----------- | -------------------- | -------- | ---------------------------------------------- |
+| `name`      | `string`             | Yes      | Unique name for this source                    |
+| `type`      | `"graphql"`          | Yes      | Source type                                    |
+| `schema`    | `object`             | Yes      | Schema configuration (see below)               |
+| `documents` | `string \| string[]` | Yes      | Glob pattern(s) for `.graphql` operation files |
+| `generates` | `array`              | Yes      | What to generate: `["query", "form", "db"]`    |
+| `overrides` | `object`             | No       | Override scalars and DB collection settings    |
 
 #### Overrides Configuration
 
@@ -370,15 +371,15 @@ overrides: {
 
 ### OpenAPI Source Options
 
-| Option      | Type                     | Required | Description                              |
-| ----------- | ------------------------ | -------- | ---------------------------------------- |
-| `name`      | `string`                 | Yes      | Unique name for this source              |
-| `type`      | `"openapi"`              | Yes      | Source type                              |
-| `spec`      | `string`                 | Yes      | Path to OpenAPI spec (local file or URL) |
-| `headers`   | `Record<string, string>` | No       | Headers for fetching remote spec         |
-| `include`   | `string[]`               | No       | Glob patterns for paths to include       |
-| `exclude`   | `string[]`               | No       | Glob patterns for paths to exclude       |
-| `generates` | `array`                  | Yes      | What to generate: `["query", "form", "db"]` |
+| Option      | Type                     | Required | Description                                           |
+| ----------- | ------------------------ | -------- | ----------------------------------------------------- |
+| `name`      | `string`                 | Yes      | Unique name for this source                           |
+| `type`      | `"openapi"`              | Yes      | Source type                                           |
+| `spec`      | `string`                 | Yes      | Path to OpenAPI spec (local file or URL)              |
+| `headers`   | `Record<string, string>` | No       | Headers for fetching remote spec                      |
+| `include`   | `string[]`               | No       | Glob patterns for paths to include                    |
+| `exclude`   | `string[]`               | No       | Glob patterns for paths to exclude                    |
+| `generates` | `array`                  | Yes      | What to generate: `["query", "form", "db"]`           |
 | `overrides` | `object`                 | No       | Override DB collection settings (see GraphQL section) |
 
 ### Global Options
@@ -476,9 +477,11 @@ export const getUserQueryVariablesSchema = z.object({
 
 // Operation response schemas
 export const getUserQuerySchema = z.object({
-  user: z.object({
-    ...userFieldsFragmentSchema.shape,
-  }).nullable(),
+  user: z
+    .object({
+      ...userFieldsFragmentSchema.shape,
+    })
+    .nullable(),
 });
 
 // TypeScript Types (inferred from Zod schemas)
@@ -496,7 +499,10 @@ Ready-to-use `queryOptions` and `mutationOptions` that import from the standalon
 ```typescript
 import { queryOptions, mutationOptions } from "@tanstack/react-query";
 import { getUser, createUser } from "../functions";
-import type { GetUserQueryVariables, CreateUserMutationVariables } from "../schema";
+import type {
+  GetUserQueryVariables,
+  CreateUserMutationVariables,
+} from "../schema";
 
 export const getUserQueryOptions = (variables: GetUserQueryVariables) =>
   queryOptions({
@@ -507,7 +513,8 @@ export const getUserQueryOptions = (variables: GetUserQueryVariables) =>
 export const createUserMutationOptions = () =>
   mutationOptions({
     mutationKey: ["graphql", "CreateUser"],
-    mutationFn: (variables: CreateUserMutationVariables) => createUser(variables),
+    mutationFn: (variables: CreateUserMutationVariables) =>
+      createUser(variables),
   });
 ```
 
@@ -560,13 +567,13 @@ export const $fetch = createFetch({
 
 export function buildPath(
   template: string,
-  params: Record<string, string | number>
+  params: Record<string, string | number>,
 ): string {
   // Substitutes {param} placeholders in URL templates
 }
 
 export function buildQuery(
-  params: Record<string, string | number | boolean | undefined>
+  params: Record<string, string | number | boolean | undefined>,
 ): string {
   // Builds query strings from params objects
 }
@@ -739,17 +746,19 @@ import { createUserFormOptions } from "./generated/api/form/forms";
 import type { CreateUserRequest } from "./generated/api/schema";
 
 function CreateUserForm() {
+  const defaultValues: CreateUserRequest = {
+    name: "",
+    email: ""
+  }
+
   const form = useForm({
     ...createUserFormOptions,
-    defaultValues: {
-      name: "",
-      email: "",
-    } satisfies CreateUserRequest,
+    defaultValues,
     onSubmit: async ({ value }) => {
       // value is fully typed as CreateUserRequest
-      await api.createUser(value);
+      await api.createUser(value)
     },
-  });
+  })
 
   return (
     <form
@@ -813,7 +822,10 @@ export const getUser = async (variables: GetUserQueryVariables) =>
   (await getClient()).request<GetUserQuery>(GetUserDocument, variables);
 
 export const createUser = async (variables: CreateUserMutationVariables) =>
-  (await getClient()).request<CreateUserMutation>(CreateUserDocument, variables);
+  (await getClient()).request<CreateUserMutation>(
+    CreateUserDocument,
+    variables,
+  );
 ```
 
 #### `<source>/query/operations.ts`
@@ -823,7 +835,10 @@ Query options that import and use the standalone functions:
 ```typescript
 import { queryOptions, mutationOptions } from "@tanstack/react-query";
 import { getUser, createUser } from "../functions";
-import type { GetUserQueryVariables, CreateUserMutationVariables } from "../schema";
+import type {
+  GetUserQueryVariables,
+  CreateUserMutationVariables,
+} from "../schema";
 
 export const getUserQueryOptions = (variables: GetUserQueryVariables) =>
   queryOptions({
@@ -834,7 +849,8 @@ export const getUserQueryOptions = (variables: GetUserQueryVariables) =>
 export const createUserMutationOptions = () =>
   mutationOptions({
     mutationKey: ["graphql", "CreateUser"],
-    mutationFn: (variables: CreateUserMutationVariables) => createUser(variables),
+    mutationFn: (variables: CreateUserMutationVariables) =>
+      createUser(variables),
   });
 ```
 
@@ -901,7 +917,8 @@ export default defineConfig({
 For DB generation, you'll need:
 
 ```bash
-bun add @tanstack/db @tanstack/query-db @tanstack/react-query
+bun add @tanstack/react-db @tanstack/query-db-collection @tanstack/react-query
+zod
 ```
 
 ### Entity Discovery
@@ -983,22 +1000,22 @@ export const petCollectionOptions = (queryClient: QueryClient) =>
       getKey: (item) => item.id,
       onInsert: async ({ transaction }) => {
         await Promise.all(
-          transaction.mutations.map((m) => createPet({ body: m.modified }))
+          transaction.mutations.map((m) => createPet({ body: m.modified })),
         );
       },
       onUpdate: async ({ transaction }) => {
         await Promise.all(
           transaction.mutations.map((m) =>
-            updatePet({ id: m.original.id, body: m.changes })
-          )
+            updatePet({ id: m.original.id, body: m.changes }),
+          ),
         );
       },
       onDelete: async ({ transaction }) => {
         await Promise.all(
-          transaction.mutations.map((m) => deletePet({ id: m.key }))
+          transaction.mutations.map((m) => deletePet({ id: m.key })),
         );
       },
-    })
+    }),
   );
 ```
 

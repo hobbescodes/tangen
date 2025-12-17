@@ -213,20 +213,21 @@ Use the generated `formOptions` alongside `mutationOptions` from [TanStack Query
 
 ```typescript
 import { useForm } from "@tanstack/react-form"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { createUserFormOptions } from "./generated/form/api/forms"
-import { createUserMutationOptions } from "./generated/query/api/operations"
+import { useMutation } from "@tanstack/react-query"
+
+import { createUserFormOptions } from "./generated/api/form/forms"
+import { createUserMutationOptions, getUsersQueryOptions } from "./generated/api/query/operations"
 
 function CreateUserForm() {
-  const queryClient = useQueryClient()
-  const mutation = useMutation(createUserMutationOptions())
+  const mutation = useMutation({
+    ...createUserMutationOptions(),
+    onSuccess: (_d, _v, _r, { client }) => client.invalidateQueries(getUsersQueryOptions())
+  })
 
   const form = useForm({
     ...createUserFormOptions,
     onSubmit: async ({ value }) => {
       await mutation.mutateAsync(value)
-      // Invalidate queries after successful mutation
-      queryClient.invalidateQueries({ queryKey: ["api", "listUsers"] })
     },
   })
 
@@ -259,13 +260,15 @@ import { createUserFormOptions } from "./generated/api/form/forms"
 import type { CreateUserRequest } from "./generated/api/schema"
 
 function CreateUserForm() {
+  const defaultValues: CreateUserRequest = {
+    name: "",
+    email: "",
+    role: "user"
+  }
+
   const form = useForm({
     ...createUserFormOptions,
-    defaultValues: {
-      name: "",
-      email: "",
-      role: "user",
-    } satisfies CreateUserRequest,
+    defaultValues,
     onSubmit: async ({ value }) => {
       // ...
     },
@@ -274,8 +277,6 @@ function CreateUserForm() {
   // ...
 }
 ```
-
-The `satisfies` keyword ensures your default values match the expected type while allowing TypeScript to infer the exact shape.
 
 ### Edit Forms with Existing Data
 
@@ -287,13 +288,15 @@ import { updateUserFormOptions } from "./generated/api/form/forms"
 import type { UpdateUserRequest } from "./generated/api/schema"
 
 function EditUserForm({ user }: { user: User }) {
+  const defaultValues: UpdateUserRequest = {
+    name: user.name,
+    email: user.email,
+    bio: user.bio ?? ""
+  }
+
   const form = useForm({
     ...updateUserFormOptions,
-    defaultValues: {
-      name: user.name,
-      email: user.email,
-      bio: user.bio ?? "",
-    } satisfies UpdateUserRequest,
+    defaultValues,
     onSubmit: async ({ value }) => {
       // ...
     },
