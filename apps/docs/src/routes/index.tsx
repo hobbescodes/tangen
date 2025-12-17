@@ -16,7 +16,7 @@ function HomePage() {
         <h1 className="text-5xl font-bold tracking-tight">Tangrams</h1>
         <p className="max-w-xl text-lg text-fd-muted-foreground">
           Assemble the pieces. Every data layer is a puzzle - Tangrams generates
-          the type-safe pieces that fit perfectly into your TanStack
+          the type-safe TanStack pieces that fit perfectly into your
           applications.
         </p>
       </div>
