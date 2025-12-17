@@ -232,3 +232,87 @@ export function isSchemaReference(zodType: string): boolean {
     !zodType.startsWith("z.") && /^[A-Za-z][A-Za-z0-9]*Schema$/.test(zodType)
   );
 }
+
+// ============================================================================
+// GraphQL-specific naming utilities
+// ============================================================================
+
+/**
+ * Convert a GraphQL operation name to a query variables schema name
+ * e.g., "GetPets" -> "getPetsQueryVariablesSchema"
+ */
+export function toQueryVariablesSchemaName(operationName: string): string {
+  return `${toCamelCase(operationName)}QueryVariablesSchema`;
+}
+
+/**
+ * Convert a GraphQL operation name to a mutation variables schema name
+ * e.g., "CreatePet" -> "createPetMutationVariablesSchema"
+ */
+export function toMutationVariablesSchemaName(operationName: string): string {
+  return `${toCamelCase(operationName)}MutationVariablesSchema`;
+}
+
+/**
+ * Convert a GraphQL operation name to a query response schema name
+ * e.g., "GetPets" -> "getPetsQuerySchema"
+ */
+export function toQueryResponseSchemaName(operationName: string): string {
+  return `${toCamelCase(operationName)}QuerySchema`;
+}
+
+/**
+ * Convert a GraphQL operation name to a mutation response schema name
+ * e.g., "CreatePet" -> "createPetMutationSchema"
+ */
+export function toMutationResponseSchemaName(operationName: string): string {
+  return `${toCamelCase(operationName)}MutationSchema`;
+}
+
+/**
+ * Convert a GraphQL fragment name to a fragment schema name
+ * e.g., "PetFields" -> "petFieldsFragmentSchema"
+ */
+export function toFragmentSchemaName(fragmentName: string): string {
+  return `${toCamelCase(fragmentName)}FragmentSchema`;
+}
+
+/**
+ * Convert a GraphQL operation name to a query variables type name
+ * e.g., "GetPets" -> "GetPetsQueryVariables"
+ */
+export function toQueryVariablesTypeName(operationName: string): string {
+  return `${toPascalCase(operationName)}QueryVariables`;
+}
+
+/**
+ * Convert a GraphQL operation name to a mutation variables type name
+ * e.g., "CreatePet" -> "CreatePetMutationVariables"
+ */
+export function toMutationVariablesTypeName(operationName: string): string {
+  return `${toPascalCase(operationName)}MutationVariables`;
+}
+
+/**
+ * Convert a GraphQL operation name to a query response type name
+ * e.g., "GetPets" -> "GetPetsQuery"
+ */
+export function toQueryResponseTypeName(operationName: string): string {
+  return `${toPascalCase(operationName)}Query`;
+}
+
+/**
+ * Convert a GraphQL operation name to a mutation response type name
+ * e.g., "CreatePet" -> "CreatePetMutation"
+ */
+export function toMutationResponseTypeName(operationName: string): string {
+  return `${toPascalCase(operationName)}Mutation`;
+}
+
+/**
+ * Convert a GraphQL fragment name to a fragment type name
+ * e.g., "PetFields" -> "PetFieldsFragment"
+ */
+export function toFragmentTypeName(fragmentName: string): string {
+  return `${toPascalCase(fragmentName)}Fragment`;
+}

@@ -5,6 +5,8 @@ import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { createPetFormOptions } from "@/generated/api/form/forms";
 import { createPet } from "@/generated/api/functions";
 
+import type { PetCategory, PetStatus } from "@/generated/api/schema";
+
 export const Route = createFileRoute("/pets/new")({
   component: NewPetComponent,
 });
@@ -87,7 +89,9 @@ function NewPetComponent() {
                 name={field.name}
                 value={field.state.value}
                 onBlur={field.handleBlur}
-                onChange={(e) => field.handleChange(e.target.value)}
+                onChange={(e) =>
+                  field.handleChange(e.target.value as PetCategory)
+                }
                 className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 <option value="dog">Dog</option>
@@ -119,7 +123,9 @@ function NewPetComponent() {
                 name={field.name}
                 value={field.state.value}
                 onBlur={field.handleBlur}
-                onChange={(e) => field.handleChange(e.target.value)}
+                onChange={(e) =>
+                  field.handleChange(e.target.value as PetStatus)
+                }
                 className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 <option value="available">Available</option>

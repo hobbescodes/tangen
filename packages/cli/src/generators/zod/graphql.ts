@@ -1,14 +1,22 @@
 /**
  * GraphQL to Zod schema generation
- * Converts GraphQL input types and enums to Zod validation schemas
+ * Converts GraphQL types to Zod validation schemas including:
+ * - Enums
+ * - Input types (for mutations)
+ * - Fragment schemas
+ * - Operation variable schemas
+ * - Operation response schemas
  */
 
 import {
   isEnumType,
   isInputObjectType,
+  isInterfaceType,
   isListType,
   isNonNullType,
+  isObjectType,
   isScalarType,
+  isUnionType,
 } from "graphql";
 
 import {
@@ -16,6 +24,17 @@ import {
   buildZodOutput,
   createZodGenContext,
   getSafePropertyName,
+  toFragmentSchemaName,
+  toFragmentTypeName,
+  toMutationResponseSchemaName,
+  toMutationResponseTypeName,
+  toMutationVariablesSchemaName,
+  toMutationVariablesTypeName,
+  toPascalCase,
+  toQueryResponseSchemaName,
+  toQueryResponseTypeName,
+  toQueryVariablesSchemaName,
+  toQueryVariablesTypeName,
   toSchemaName,
 } from "./index";
 
@@ -23,9 +42,17 @@ import type {
   GraphQLEnumType,
   GraphQLInputObjectType,
   GraphQLInputType,
+  GraphQLInterfaceType,
+  GraphQLObjectType,
+  GraphQLOutputType,
   GraphQLSchema,
+  GraphQLUnionType,
 } from "graphql";
-import type { ParsedDocuments } from "@/core/documents";
+import type {
+  ParsedDocuments,
+  ParsedFragment,
+  ParsedOperation,
+} from "@/core/documents";
 import type { ZodGenContext } from "./index";
 
 /**
@@ -56,6 +83,10 @@ interface GraphQLZodContext extends ZodGenContext {
   scalarMappings: Record<string, string>;
   /** Types that have been visited (to avoid infinite recursion) */
   visited: Set<string>;
+  /** All parsed fragments for lookup during response generation */
+  fragments: ParsedFragment[];
+  /** Fragment schemas that have been generated (for spreading) */
+  generatedFragmentSchemas: Set<string>;
 }
 
 /**
@@ -64,8 +95,6 @@ interface GraphQLZodContext extends ZodGenContext {
 export interface GraphQLZodOptions {
   /** Custom scalar to Zod mappings (e.g., { DateTime: "z.string()" }) */
   scalars?: Record<string, string>;
-  /** Generate operation variables schemas (for form generation) */
-  includeOperationVariables?: boolean;
 }
 
 /**
@@ -80,7 +109,12 @@ export interface GraphQLZodResult {
 
 /**
  * Generate Zod schemas from GraphQL schema and documents
- * Generates schemas for input types used by mutations (variables)
+ * Generates schemas for:
+ * - All enums referenced by operations (inputs and outputs)
+ * - Input types used by mutations
+ * - Fragment schemas
+ * - Operation variable schemas
+ * - Operation response schemas
  */
 export function generateGraphQLZodSchemas(
   schema: GraphQLSchema,
@@ -95,26 +129,34 @@ export function generateGraphQLZodSchemas(
       ...options.scalars,
     },
     visited: new Set(),
+    fragments: documents.fragments,
+    generatedFragmentSchemas: new Set(),
   };
 
-  // Process all operations
-  const operations = documents.operations;
+  const { operations, fragments } = documents;
 
-  // Collect all input types used by operation variables
+  // 1. Collect and generate all enums referenced by operations (both inputs and outputs)
+  collectAndGenerateEnums(operations, fragments, ctx);
+
+  // 2. Collect and generate input types used by operation variables
   const inputTypes = collectInputTypesFromOperations(operations, schema, ctx);
-
-  // Generate Zod schemas for collected input types (in dependency order)
   for (const inputType of inputTypes) {
     generateInputTypeSchema(inputType, ctx);
   }
 
-  // Process any pending schemas (dependencies)
+  // 3. Process any pending schemas (enum/input dependencies)
   processPendingSchemas(ctx);
 
-  // Generate operation variables schemas if requested (for form generation)
-  if (options.includeOperationVariables) {
-    generateOperationVariablesSchemas(operations, ctx);
+  // 4. Generate fragment schemas
+  for (const fragment of fragments) {
+    generateFragmentSchema(fragment, ctx);
   }
+
+  // 5. Generate operation variable schemas
+  generateOperationVariablesSchemas(operations, ctx);
+
+  // 6. Generate operation response schemas
+  generateOperationResponseSchemas(operations, ctx);
 
   return {
     content: buildZodOutput(ctx),
@@ -122,11 +164,269 @@ export function generateGraphQLZodSchemas(
   };
 }
 
+// ============================================================================
+// Enum Collection and Generation
+// ============================================================================
+
+/**
+ * Collect and generate all enums referenced by operations (both inputs and outputs)
+ */
+function collectAndGenerateEnums(
+  operations: ParsedOperation[],
+  fragments: ParsedFragment[],
+  ctx: GraphQLZodContext,
+): void {
+  const enumTypes = new Set<GraphQLEnumType>();
+
+  // Collect enums from operation variables (inputs)
+  for (const operation of operations) {
+    const variables = operation.node.variableDefinitions ?? [];
+    for (const varDef of variables) {
+      collectEnumsFromTypeNode(varDef.type, ctx, enumTypes);
+    }
+  }
+
+  // Collect enums from operation selection sets (outputs)
+  for (const operation of operations) {
+    const rootType =
+      operation.operation === "query"
+        ? ctx.schema.getQueryType()
+        : ctx.schema.getMutationType();
+
+    if (rootType && operation.node.selectionSet) {
+      collectEnumsFromSelectionSet(
+        operation.node.selectionSet,
+        rootType,
+        ctx,
+        enumTypes,
+      );
+    }
+  }
+
+  // Collect enums from fragment selection sets
+  for (const fragment of fragments) {
+    const parentType = ctx.schema.getType(fragment.typeName);
+    if (
+      parentType &&
+      (isObjectType(parentType) || isInterfaceType(parentType))
+    ) {
+      collectEnumsFromSelectionSet(
+        fragment.node.selectionSet,
+        parentType,
+        ctx,
+        enumTypes,
+      );
+    }
+  }
+
+  // Generate schemas for all collected enums
+  for (const enumType of enumTypes) {
+    generateEnumSchema(enumType, ctx);
+  }
+}
+
+/**
+ * Collect enums from a GraphQL AST type node
+ */
+function collectEnumsFromTypeNode(
+  typeNode: { kind: string; type?: unknown; name?: { value: string } },
+  ctx: GraphQLZodContext,
+  enumTypes: Set<GraphQLEnumType>,
+): void {
+  if (
+    (typeNode.kind === "NonNullType" || typeNode.kind === "ListType") &&
+    typeNode.type
+  ) {
+    collectEnumsFromTypeNode(
+      typeNode.type as {
+        kind: string;
+        type?: unknown;
+        name?: { value: string };
+      },
+      ctx,
+      enumTypes,
+    );
+    return;
+  }
+
+  if (typeNode.kind === "NamedType" && typeNode.name?.value) {
+    const typeName = typeNode.name.value;
+    const schemaType = ctx.schema.getType(typeName);
+
+    if (isEnumType(schemaType)) {
+      enumTypes.add(schemaType);
+    } else if (isInputObjectType(schemaType)) {
+      // Recursively collect enums from input object fields
+      const fields = schemaType.getFields();
+      for (const field of Object.values(fields)) {
+        collectEnumsFromGraphQLInputType(field.type, ctx, enumTypes);
+      }
+    }
+  }
+}
+
+/**
+ * Collect enums from a GraphQL input type
+ */
+function collectEnumsFromGraphQLInputType(
+  type: GraphQLInputType,
+  ctx: GraphQLZodContext,
+  enumTypes: Set<GraphQLEnumType>,
+): void {
+  if (isNonNullType(type) || isListType(type)) {
+    collectEnumsFromGraphQLInputType(type.ofType, ctx, enumTypes);
+    return;
+  }
+
+  if (isEnumType(type)) {
+    enumTypes.add(type);
+  } else if (isInputObjectType(type)) {
+    const fields = type.getFields();
+    for (const field of Object.values(fields)) {
+      collectEnumsFromGraphQLInputType(field.type, ctx, enumTypes);
+    }
+  }
+}
+
+/**
+ * Collect enums from a selection set (for output types)
+ */
+function collectEnumsFromSelectionSet(
+  selectionSet: { selections: readonly unknown[] },
+  parentType: GraphQLObjectType | GraphQLInterfaceType,
+  ctx: GraphQLZodContext,
+  enumTypes: Set<GraphQLEnumType>,
+): void {
+  const parentFields = parentType.getFields();
+
+  for (const selection of selectionSet.selections) {
+    const sel = selection as {
+      kind: string;
+      name?: { value: string };
+      selectionSet?: { selections: readonly unknown[] };
+      typeCondition?: { name: { value: string } };
+    };
+
+    if (sel.kind === "Field") {
+      const fieldName = sel.name?.value;
+      if (!fieldName || fieldName === "__typename") continue;
+
+      const schemaField = parentFields[fieldName];
+      if (!schemaField) continue;
+
+      collectEnumsFromOutputType(
+        schemaField.type,
+        sel.selectionSet,
+        ctx,
+        enumTypes,
+      );
+    }
+
+    if (sel.kind === "FragmentSpread") {
+      const fragmentName = sel.name?.value;
+      const fragment = ctx.fragments.find((f) => f.name === fragmentName);
+      if (fragment) {
+        const fragmentType = ctx.schema.getType(fragment.typeName);
+        if (
+          fragmentType &&
+          (isObjectType(fragmentType) || isInterfaceType(fragmentType))
+        ) {
+          collectEnumsFromSelectionSet(
+            fragment.node.selectionSet,
+            fragmentType,
+            ctx,
+            enumTypes,
+          );
+        }
+      }
+    }
+
+    if (
+      sel.kind === "InlineFragment" &&
+      sel.typeCondition &&
+      sel.selectionSet
+    ) {
+      const typeName = sel.typeCondition.name.value;
+      const fragmentType = ctx.schema.getType(typeName);
+      if (
+        fragmentType &&
+        (isObjectType(fragmentType) || isInterfaceType(fragmentType))
+      ) {
+        collectEnumsFromSelectionSet(
+          sel.selectionSet,
+          fragmentType,
+          ctx,
+          enumTypes,
+        );
+      }
+    }
+  }
+}
+
+/**
+ * Collect enums from a GraphQL output type
+ */
+function collectEnumsFromOutputType(
+  type: GraphQLOutputType,
+  selectionSet: { selections: readonly unknown[] } | undefined,
+  ctx: GraphQLZodContext,
+  enumTypes: Set<GraphQLEnumType>,
+): void {
+  if (isNonNullType(type) || isListType(type)) {
+    collectEnumsFromOutputType(type.ofType, selectionSet, ctx, enumTypes);
+    return;
+  }
+
+  if (isEnumType(type)) {
+    enumTypes.add(type);
+    return;
+  }
+
+  if ((isObjectType(type) || isInterfaceType(type)) && selectionSet) {
+    collectEnumsFromSelectionSet(selectionSet, type, ctx, enumTypes);
+  }
+
+  if (isUnionType(type) && selectionSet) {
+    // For unions, we need to look at inline fragments
+    for (const selection of selectionSet.selections) {
+      const sel = selection as {
+        kind: string;
+        typeCondition?: { name: { value: string } };
+        selectionSet?: { selections: readonly unknown[] };
+      };
+
+      if (
+        sel.kind === "InlineFragment" &&
+        sel.typeCondition &&
+        sel.selectionSet
+      ) {
+        const typeName = sel.typeCondition.name.value;
+        const fragmentType = ctx.schema.getType(typeName);
+        if (
+          fragmentType &&
+          (isObjectType(fragmentType) || isInterfaceType(fragmentType))
+        ) {
+          collectEnumsFromSelectionSet(
+            sel.selectionSet,
+            fragmentType,
+            ctx,
+            enumTypes,
+          );
+        }
+      }
+    }
+  }
+}
+
+// ============================================================================
+// Input Type Collection and Generation
+// ============================================================================
+
 /**
  * Collect all input types used by operation variables
  */
 function collectInputTypesFromOperations(
-  operations: ParsedDocuments["operations"],
+  operations: ParsedOperation[],
   schema: GraphQLSchema,
   ctx: GraphQLZodContext,
 ): GraphQLInputObjectType[] {
@@ -160,7 +460,6 @@ function collectInputTypesFromTypeNode(
   collected: Set<string>,
   ctx: GraphQLZodContext,
 ): void {
-  // Unwrap NonNull and List
   if (
     (typeNode.kind === "NonNullType" || typeNode.kind === "ListType") &&
     typeNode.type
@@ -179,7 +478,6 @@ function collectInputTypesFromTypeNode(
     return;
   }
 
-  // Get the named type
   if (typeNode.kind === "NamedType" && typeNode.name?.value) {
     const typeName = typeNode.name.value;
     const schemaType = schema.getType(typeName);
@@ -189,18 +487,10 @@ function collectInputTypesFromTypeNode(
       return;
     }
 
-    // Collect input object types
     if (isInputObjectType(schemaType) && !collected.has(typeName)) {
       collected.add(typeName);
       inputTypes.push(schemaType);
-
-      // Recursively collect nested input types
       collectNestedInputTypes(schemaType, schema, inputTypes, collected, ctx);
-    }
-
-    // Enums are collected during schema generation
-    if (isEnumType(schemaType) && !collected.has(typeName)) {
-      collected.add(typeName);
     }
   }
 }
@@ -238,7 +528,6 @@ function collectInputTypesFromGraphQLType(
   collected: Set<string>,
   ctx: GraphQLZodContext,
 ): void {
-  // Unwrap NonNull and List
   if (isNonNullType(type) || isListType(type)) {
     collectInputTypesFromGraphQLType(
       type.ofType,
@@ -250,14 +539,33 @@ function collectInputTypesFromGraphQLType(
     return;
   }
 
-  // Collect input object types
   if (isInputObjectType(type) && !collected.has(type.name)) {
     collected.add(type.name);
     inputTypes.push(type);
-
-    // Recursively collect nested input types
     collectNestedInputTypes(type, schema, inputTypes, collected, ctx);
   }
+}
+
+// ============================================================================
+// Schema Generation
+// ============================================================================
+
+/**
+ * Generate a Zod schema for a GraphQL enum type
+ */
+function generateEnumSchema(
+  enumType: GraphQLEnumType,
+  ctx: GraphQLZodContext,
+): void {
+  const typeName = enumType.name;
+
+  if (ctx.generatedSchemas.has(typeName)) return;
+
+  const values = enumType.getValues();
+  const enumValues = values.map((v) => `"${v.name}"`).join(", ");
+  const zodSchema = `z.enum([${enumValues}])`;
+
+  addSchemaToContext(ctx, typeName, zodSchema);
 }
 
 /**
@@ -278,7 +586,7 @@ function generateInputTypeSchema(
   const fieldDefs: string[] = [];
 
   for (const field of Object.values(fields)) {
-    const zodType = graphqlTypeToZod(field.type, ctx);
+    const zodType = graphqlInputTypeToZod(field.type, ctx);
     const isRequired = isNonNullType(field.type);
     const safeName = getSafePropertyName(field.name);
 
@@ -290,24 +598,6 @@ function generateInputTypeSchema(
   }
 
   const zodSchema = `z.object({\n${fieldDefs.join(",\n")}\n})`;
-  addSchemaToContext(ctx, typeName, zodSchema);
-}
-
-/**
- * Generate a Zod schema for a GraphQL enum type
- */
-function generateEnumSchema(
-  enumType: GraphQLEnumType,
-  ctx: GraphQLZodContext,
-): void {
-  const typeName = enumType.name;
-
-  if (ctx.generatedSchemas.has(typeName)) return;
-
-  const values = enumType.getValues();
-  const enumValues = values.map((v) => `"${v.name}"`).join(", ");
-  const zodSchema = `z.enum([${enumValues}])`;
-
   addSchemaToContext(ctx, typeName, zodSchema);
 }
 
@@ -332,21 +622,426 @@ function processPendingSchemas(ctx: GraphQLZodContext): void {
 }
 
 /**
- * Convert a GraphQL type to a Zod type string
+ * Convert a GraphQL input type to a Zod type string
  */
-function graphqlTypeToZod(
+function graphqlInputTypeToZod(
   type: GraphQLInputType,
   ctx: GraphQLZodContext,
 ): string {
-  // Handle NonNull wrapper
   if (isNonNullType(type)) {
-    return graphqlTypeToZod(type.ofType, ctx);
+    return graphqlInputTypeToZod(type.ofType, ctx);
   }
 
-  // Handle List wrapper
   if (isListType(type)) {
-    const innerType = graphqlTypeToZod(type.ofType, ctx);
+    const innerType = graphqlInputTypeToZod(type.ofType, ctx);
     return `z.array(${innerType}).nullable()`;
+  }
+
+  if (isScalarType(type)) {
+    const zodType = ctx.scalarMappings[type.name];
+    if (zodType) {
+      return zodType;
+    }
+    ctx.warnings.push(
+      `Unknown scalar type "${type.name}", using z.unknown(). Consider adding a scalar mapping.`,
+    );
+    return "z.unknown()";
+  }
+
+  if (isEnumType(type)) {
+    if (
+      !ctx.generatedSchemas.has(type.name) &&
+      !ctx.pendingSchemas.has(type.name)
+    ) {
+      ctx.pendingSchemas.set(type.name, type);
+    }
+    return toSchemaName(type.name);
+  }
+
+  if (isInputObjectType(type)) {
+    if (
+      !ctx.generatedSchemas.has(type.name) &&
+      !ctx.pendingSchemas.has(type.name)
+    ) {
+      ctx.pendingSchemas.set(type.name, type);
+    }
+    return toSchemaName(type.name);
+  }
+
+  ctx.warnings.push("Unsupported GraphQL input type");
+  return "z.unknown()";
+}
+
+// ============================================================================
+// Fragment Schema Generation
+// ============================================================================
+
+/**
+ * Generate a Zod schema for a GraphQL fragment
+ */
+function generateFragmentSchema(
+  fragment: ParsedFragment,
+  ctx: GraphQLZodContext,
+): void {
+  const typeName = toFragmentTypeName(fragment.name);
+  const schemaName = toFragmentSchemaName(fragment.name);
+
+  if (ctx.generatedSchemas.has(typeName)) return;
+
+  const parentType = ctx.schema.getType(fragment.typeName);
+  if (
+    !parentType ||
+    (!isObjectType(parentType) && !isInterfaceType(parentType))
+  ) {
+    ctx.warnings.push(
+      `Unable to resolve type "${fragment.typeName}" for fragment "${fragment.name}"`,
+    );
+    return;
+  }
+
+  const zodSchema = generateSelectionSetZodSchema(
+    fragment.node.selectionSet,
+    parentType,
+    ctx,
+  );
+
+  // Mark this fragment as generated so we can spread it
+  ctx.generatedFragmentSchemas.add(fragment.name);
+
+  // Add to context with the Fragment type name (e.g., PetFieldsFragment)
+  ctx.generatedSchemas.add(typeName);
+  ctx.schemaEntries.set(typeName, {
+    name: typeName,
+    zodType: zodSchema,
+    dependencies: extractDependenciesFromZodSchema(zodSchema),
+  });
+  ctx.typeExports.push(
+    `export type ${typeName} = z.infer<typeof ${schemaName}>`,
+  );
+}
+
+// ============================================================================
+// Operation Variable Schema Generation
+// ============================================================================
+
+/**
+ * Generate Zod schemas for operation variables
+ */
+function generateOperationVariablesSchemas(
+  operations: ParsedOperation[],
+  ctx: GraphQLZodContext,
+): void {
+  for (const operation of operations) {
+    const variables = operation.node.variableDefinitions ?? [];
+    if (variables.length === 0) continue;
+
+    const typeName =
+      operation.operation === "query"
+        ? toQueryVariablesTypeName(operation.name)
+        : toMutationVariablesTypeName(operation.name);
+
+    const schemaName =
+      operation.operation === "query"
+        ? toQueryVariablesSchemaName(operation.name)
+        : toMutationVariablesSchemaName(operation.name);
+
+    if (ctx.generatedSchemas.has(typeName)) continue;
+
+    const fieldDefs: string[] = [];
+
+    for (const varDef of variables) {
+      const varName = varDef.variable.name.value;
+      const zodType = astTypeToZod(varDef.type, ctx);
+      const isRequired = varDef.type.kind === "NonNullType";
+
+      if (isRequired) {
+        fieldDefs.push(`  ${varName}: ${zodType}`);
+      } else {
+        fieldDefs.push(`  ${varName}: ${zodType}.optional()`);
+      }
+    }
+
+    const zodSchema = `z.object({\n${fieldDefs.join(",\n")}\n})`;
+
+    ctx.generatedSchemas.add(typeName);
+    ctx.schemaEntries.set(typeName, {
+      name: typeName,
+      zodType: zodSchema,
+      dependencies: extractDependenciesFromZodSchema(zodSchema),
+    });
+    ctx.typeExports.push(
+      `export type ${typeName} = z.infer<typeof ${schemaName}>`,
+    );
+  }
+}
+
+/**
+ * Convert a GraphQL AST type node to a Zod type string
+ */
+function astTypeToZod(
+  typeNode: { kind: string; type?: unknown; name?: { value: string } },
+  ctx: GraphQLZodContext,
+): string {
+  if (typeNode.kind === "NonNullType" && typeNode.type) {
+    return astTypeToZod(
+      typeNode.type as {
+        kind: string;
+        type?: unknown;
+        name?: { value: string };
+      },
+      ctx,
+    );
+  }
+
+  if (typeNode.kind === "ListType" && typeNode.type) {
+    const innerType = astTypeToZod(
+      typeNode.type as {
+        kind: string;
+        type?: unknown;
+        name?: { value: string };
+      },
+      ctx,
+    );
+    return `z.array(${innerType}).nullable()`;
+  }
+
+  if (typeNode.kind === "NamedType" && typeNode.name?.value) {
+    const typeName = typeNode.name.value;
+    const schemaType = ctx.schema.getType(typeName);
+
+    if (!schemaType) {
+      ctx.warnings.push(`Unknown type "${typeName}" in operation variables`);
+      return "z.unknown()";
+    }
+
+    if (isScalarType(schemaType)) {
+      const zodType = ctx.scalarMappings[typeName];
+      if (zodType) return zodType;
+      ctx.warnings.push(
+        `Unknown scalar type "${typeName}", using z.unknown(). Consider adding a scalar mapping.`,
+      );
+      return "z.unknown()";
+    }
+
+    // Enums and input types - reference the schema
+    return toSchemaName(typeName);
+  }
+
+  return "z.unknown()";
+}
+
+// ============================================================================
+// Operation Response Schema Generation
+// ============================================================================
+
+/**
+ * Generate Zod schemas for operation responses
+ */
+function generateOperationResponseSchemas(
+  operations: ParsedOperation[],
+  ctx: GraphQLZodContext,
+): void {
+  for (const operation of operations) {
+    const typeName =
+      operation.operation === "query"
+        ? toQueryResponseTypeName(operation.name)
+        : toMutationResponseTypeName(operation.name);
+
+    const schemaName =
+      operation.operation === "query"
+        ? toQueryResponseSchemaName(operation.name)
+        : toMutationResponseSchemaName(operation.name);
+
+    if (ctx.generatedSchemas.has(typeName)) continue;
+
+    const rootType =
+      operation.operation === "query"
+        ? ctx.schema.getQueryType()
+        : ctx.schema.getMutationType();
+
+    if (!rootType) {
+      ctx.warnings.push(
+        `No ${operation.operation} type in schema for operation "${operation.name}"`,
+      );
+      continue;
+    }
+
+    const zodSchema = generateSelectionSetZodSchema(
+      operation.node.selectionSet,
+      rootType,
+      ctx,
+    );
+
+    ctx.generatedSchemas.add(typeName);
+    ctx.schemaEntries.set(typeName, {
+      name: typeName,
+      zodType: zodSchema,
+      dependencies: extractDependenciesFromZodSchema(zodSchema),
+    });
+    ctx.typeExports.push(
+      `export type ${typeName} = z.infer<typeof ${schemaName}>`,
+    );
+  }
+}
+
+// ============================================================================
+// Selection Set to Zod Schema Conversion
+// ============================================================================
+
+interface SelectionFieldResult {
+  fields: string[];
+  spreadFragments: string[];
+}
+
+/**
+ * Generate a Zod schema from a GraphQL selection set
+ */
+function generateSelectionSetZodSchema(
+  selectionSet: { selections: readonly unknown[] },
+  parentType: GraphQLObjectType | GraphQLInterfaceType,
+  ctx: GraphQLZodContext,
+): string {
+  const result = extractSelectionFields(selectionSet, parentType, ctx);
+
+  // If there are fragment spreads, use Zod v4 spread pattern
+  if (result.spreadFragments.length > 0) {
+    const spreadParts = result.spreadFragments.map(
+      (f) => `...${toFragmentSchemaName(f)}.shape`,
+    );
+
+    if (result.fields.length > 0) {
+      // Combine fragment spreads with inline fields
+      return `z.object({\n  ${spreadParts.join(",\n  ")},\n${result.fields.join(",\n")}\n})`;
+    }
+    // Only fragment spreads
+    return `z.object({\n  ${spreadParts.join(",\n  ")}\n})`;
+  }
+
+  // No fragment spreads, just inline fields
+  return `z.object({\n${result.fields.join(",\n")}\n})`;
+}
+
+/**
+ * Extract field definitions from a selection set
+ */
+function extractSelectionFields(
+  selectionSet: { selections: readonly unknown[] },
+  parentType: GraphQLObjectType | GraphQLInterfaceType,
+  ctx: GraphQLZodContext,
+): SelectionFieldResult {
+  const fields: string[] = [];
+  const spreadFragments: string[] = [];
+  const parentFields = parentType.getFields();
+
+  for (const selection of selectionSet.selections) {
+    const sel = selection as {
+      kind: string;
+      name?: { value: string };
+      alias?: { value: string };
+      selectionSet?: { selections: readonly unknown[] };
+      typeCondition?: { name: { value: string } };
+    };
+
+    if (sel.kind === "Field") {
+      const fieldName = sel.name?.value;
+      const outputName = sel.alias?.value ?? fieldName;
+      if (!fieldName || !outputName) continue;
+
+      // Handle __typename
+      if (fieldName === "__typename") {
+        fields.push(`  ${outputName}: z.literal("${parentType.name}")`);
+        continue;
+      }
+
+      const schemaField = parentFields[fieldName];
+      if (!schemaField) continue;
+
+      const fieldType = schemaField.type;
+      const zodType = generateOutputTypeZodSchema(
+        fieldType,
+        sel.selectionSet,
+        ctx,
+      );
+      const isRequired = isNonNullType(fieldType);
+
+      if (isRequired) {
+        fields.push(`  ${outputName}: ${zodType}`);
+      } else {
+        fields.push(`  ${outputName}: ${zodType}.nullable()`);
+      }
+    }
+
+    if (sel.kind === "FragmentSpread") {
+      const fragmentName = sel.name?.value;
+      if (fragmentName && ctx.generatedFragmentSchemas.has(fragmentName)) {
+        spreadFragments.push(fragmentName);
+      } else if (fragmentName) {
+        // Fragment not yet generated, inline it
+        const fragment = ctx.fragments.find((f) => f.name === fragmentName);
+        if (fragment) {
+          const fragmentType = ctx.schema.getType(fragment.typeName);
+          if (
+            fragmentType &&
+            (isObjectType(fragmentType) || isInterfaceType(fragmentType))
+          ) {
+            const fragmentResult = extractSelectionFields(
+              fragment.node.selectionSet,
+              fragmentType,
+              ctx,
+            );
+            fields.push(...fragmentResult.fields);
+            spreadFragments.push(...fragmentResult.spreadFragments);
+          }
+        }
+      }
+    }
+
+    if (sel.kind === "InlineFragment" && sel.selectionSet) {
+      // For inline fragments without type condition, merge fields
+      // For inline fragments with type condition, we'd need discriminated unions
+      // For now, handle the simple case
+      const typeName = sel.typeCondition?.name.value ?? parentType.name;
+      const fragmentType = ctx.schema.getType(typeName);
+
+      if (
+        fragmentType &&
+        (isObjectType(fragmentType) || isInterfaceType(fragmentType))
+      ) {
+        const inlineResult = extractSelectionFields(
+          sel.selectionSet,
+          fragmentType,
+          ctx,
+        );
+        fields.push(...inlineResult.fields);
+        spreadFragments.push(...inlineResult.spreadFragments);
+      }
+    }
+  }
+
+  return { fields, spreadFragments };
+}
+
+/**
+ * Generate a Zod schema for a GraphQL output type
+ */
+function generateOutputTypeZodSchema(
+  type: GraphQLOutputType,
+  selectionSet: { selections: readonly unknown[] } | undefined,
+  ctx: GraphQLZodContext,
+): string {
+  // Unwrap NonNull
+  if (isNonNullType(type)) {
+    return generateOutputTypeZodSchema(type.ofType, selectionSet, ctx);
+  }
+
+  // Handle lists
+  if (isListType(type)) {
+    const innerType = generateOutputTypeZodSchema(
+      type.ofType,
+      selectionSet,
+      ctx,
+    );
+    return `z.array(${innerType})`;
   }
 
   // Handle scalars
@@ -363,124 +1058,160 @@ function graphqlTypeToZod(
 
   // Handle enums
   if (isEnumType(type)) {
-    // Queue enum for generation if not already generated
-    if (
-      !ctx.generatedSchemas.has(type.name) &&
-      !ctx.pendingSchemas.has(type.name)
-    ) {
-      ctx.pendingSchemas.set(type.name, type);
-    }
     return toSchemaName(type.name);
   }
 
-  // Handle input object types
-  if (isInputObjectType(type)) {
-    // Queue input type for generation if not already generated
-    if (
-      !ctx.generatedSchemas.has(type.name) &&
-      !ctx.pendingSchemas.has(type.name)
-    ) {
-      ctx.pendingSchemas.set(type.name, type);
-    }
-    return toSchemaName(type.name);
+  // Handle union types
+  if (isUnionType(type) && selectionSet) {
+    return generateUnionTypeZodSchema(type, selectionSet, ctx);
   }
 
-  ctx.warnings.push("Unsupported GraphQL type");
+  // Handle interface types
+  if (isInterfaceType(type) && selectionSet) {
+    return generateInterfaceTypeZodSchema(type, selectionSet, ctx);
+  }
+
+  // Handle object types with nested selections
+  if (isObjectType(type) && selectionSet) {
+    return generateSelectionSetZodSchema(selectionSet, type, ctx);
+  }
+
   return "z.unknown()";
 }
 
 /**
- * Generate Zod schemas for operation variables (used by form generation)
- * Creates schemas like `createPetVariablesSchema` that wrap the input type schemas
+ * Generate a Zod schema for a GraphQL union type
  */
-function generateOperationVariablesSchemas(
-  operations: ParsedDocuments["operations"],
-  ctx: GraphQLZodContext,
-): void {
-  for (const operation of operations) {
-    const variables = operation.node.variableDefinitions ?? [];
-    if (variables.length === 0) continue;
-
-    const variablesSchemaName = `${operation.name}Variables`;
-
-    // Skip if already generated
-    if (ctx.generatedSchemas.has(variablesSchemaName)) continue;
-
-    // Build the variables schema
-    const fieldDefs: string[] = [];
-
-    for (const varDef of variables) {
-      const varName = varDef.variable.name.value;
-      const zodType = astTypeToZod(varDef.type, ctx);
-      const isRequired = varDef.type.kind === "NonNullType";
-
-      if (isRequired) {
-        fieldDefs.push(`  ${varName}: ${zodType}`);
-      } else {
-        fieldDefs.push(`  ${varName}: ${zodType}.optional()`);
-      }
-    }
-
-    const zodSchema = `z.object({\n${fieldDefs.join(",\n")}\n})`;
-    addSchemaToContext(ctx, variablesSchemaName, zodSchema);
-  }
-}
-
-/**
- * Convert a GraphQL AST type node to a Zod type string
- */
-function astTypeToZod(
-  typeNode: { kind: string; type?: unknown; name?: { value: string } },
+function generateUnionTypeZodSchema(
+  type: GraphQLUnionType,
+  selectionSet: { selections: readonly unknown[] },
   ctx: GraphQLZodContext,
 ): string {
-  // Handle NonNull wrapper
-  if (typeNode.kind === "NonNullType" && typeNode.type) {
-    return astTypeToZod(
-      typeNode.type as {
-        kind: string;
-        type?: unknown;
-        name?: { value: string };
-      },
-      ctx,
-    );
-  }
+  const inlineFragments: string[] = [];
 
-  // Handle List wrapper
-  if (typeNode.kind === "ListType" && typeNode.type) {
-    const innerType = astTypeToZod(
-      typeNode.type as {
-        kind: string;
-        type?: unknown;
-        name?: { value: string };
-      },
-      ctx,
-    );
-    return `z.array(${innerType}).nullable()`;
-  }
+  for (const selection of selectionSet.selections) {
+    const sel = selection as {
+      kind: string;
+      typeCondition?: { name: { value: string } };
+      selectionSet?: { selections: readonly unknown[] };
+    };
 
-  // Handle named type
-  if (typeNode.kind === "NamedType" && typeNode.name?.value) {
-    const typeName = typeNode.name.value;
-    const schemaType = ctx.schema.getType(typeName);
+    if (
+      sel.kind === "InlineFragment" &&
+      sel.typeCondition &&
+      sel.selectionSet
+    ) {
+      const typeName = sel.typeCondition.name.value;
+      const fragmentType = ctx.schema.getType(typeName);
 
-    if (!schemaType) {
-      ctx.warnings.push(`Unknown type "${typeName}" in operation variables`);
-      return "z.unknown()";
+      if (fragmentType && isObjectType(fragmentType)) {
+        const memberSchema = generateSelectionSetZodSchema(
+          sel.selectionSet,
+          fragmentType,
+          ctx,
+        );
+        inlineFragments.push(memberSchema);
+      }
     }
+  }
 
-    // Scalars
-    if (isScalarType(schemaType)) {
-      const zodType = ctx.scalarMappings[typeName];
-      if (zodType) return zodType;
-      ctx.warnings.push(
-        `Unknown scalar type "${typeName}", using z.unknown(). Consider adding a scalar mapping.`,
+  if (inlineFragments.length === 0) {
+    ctx.warnings.push(
+      `Union type "${type.name}" has no inline fragments. Consider adding "... on TypeName { fields }" to select specific fields.`,
+    );
+    return "z.unknown()";
+  }
+
+  if (inlineFragments.length === 1) {
+    return inlineFragments[0]!;
+  }
+
+  return `z.union([${inlineFragments.join(", ")}])`;
+}
+
+/**
+ * Generate a Zod schema for a GraphQL interface type
+ */
+function generateInterfaceTypeZodSchema(
+  type: GraphQLInterfaceType,
+  selectionSet: { selections: readonly unknown[] },
+  ctx: GraphQLZodContext,
+): string {
+  // Extract common fields and inline fragments
+  const result = extractSelectionFields(selectionSet, type, ctx);
+  const inlineFragments: string[] = [];
+
+  for (const selection of selectionSet.selections) {
+    const sel = selection as {
+      kind: string;
+      typeCondition?: { name: { value: string } };
+      selectionSet?: { selections: readonly unknown[] };
+    };
+
+    if (
+      sel.kind === "InlineFragment" &&
+      sel.typeCondition &&
+      sel.selectionSet
+    ) {
+      const typeName = sel.typeCondition.name.value;
+      const fragmentType = ctx.schema.getType(typeName);
+
+      if (
+        fragmentType &&
+        (isObjectType(fragmentType) || isInterfaceType(fragmentType))
+      ) {
+        const memberSchema = generateSelectionSetZodSchema(
+          sel.selectionSet,
+          fragmentType,
+          ctx,
+        );
+        inlineFragments.push(memberSchema);
+      }
+    }
+  }
+
+  // If no inline fragments, return the common fields
+  if (inlineFragments.length === 0) {
+    if (result.spreadFragments.length > 0) {
+      const spreadParts = result.spreadFragments.map(
+        (f) => `...${toFragmentSchemaName(f)}.shape`,
       );
-      return "z.unknown()";
+      if (result.fields.length > 0) {
+        return `z.object({\n  ${spreadParts.join(",\n  ")},\n${result.fields.join(",\n")}\n})`;
+      }
+      return `z.object({\n  ${spreadParts.join(",\n  ")}\n})`;
     }
-
-    // Enums and input types - reference the schema
-    return toSchemaName(typeName);
+    return `z.object({\n${result.fields.join(",\n")}\n})`;
   }
 
-  return "z.unknown()";
+  // With inline fragments, create a union
+  if (inlineFragments.length === 1) {
+    return inlineFragments[0]!;
+  }
+
+  return `z.union([${inlineFragments.join(", ")}])`;
+}
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * Extract schema dependencies from a Zod type string
+ */
+function extractDependenciesFromZodSchema(zodType: string): Set<string> {
+  const deps = new Set<string>();
+  // Match schema references like "petCategorySchema", "userSchema", etc.
+  const schemaRefPattern = /([a-z][a-zA-Z0-9]*(?:Fragment)?Schema)/g;
+  let match = schemaRefPattern.exec(zodType);
+  while (match !== null) {
+    const schemaVarName = match[0];
+    // Convert schema variable name to type name
+    // e.g., "petCategorySchema" -> "PetCategory", "petFieldsFragmentSchema" -> "PetFieldsFragment"
+    const baseName = schemaVarName.replace(/Schema$/, "");
+    const typeName = toPascalCase(baseName);
+    deps.add(typeName);
+    match = schemaRefPattern.exec(zodType);
+  }
+  return deps;
 }

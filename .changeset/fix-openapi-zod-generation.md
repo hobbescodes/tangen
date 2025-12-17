@@ -14,9 +14,9 @@ Fix TanStack Form options generation:
 - Generate proper default values from schema definitions instead of empty objects
 - Add type assertion with inferred types to ensure proper type widening for default values (fixes array and enum type inference issues)
 
-Fix unused type imports in generated functions.ts:
+Fix unused type imports in generated files:
 
-- Only import `*Params` types for GET operations (query functions), since mutation functions use inline types
+- Only import `*Params` types for GET operations in both `functions.ts` and `operations.ts`, since mutation functions inline their parameter types
 
 Fix GraphQL form generation:
 

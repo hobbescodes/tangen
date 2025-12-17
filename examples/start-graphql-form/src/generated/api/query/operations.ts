@@ -10,7 +10,7 @@ import type {
 	CreatePetMutationVariables,
 	UpdatePetMutationVariables,
 	DeletePetMutationVariables,
-} from "./types"
+} from "./../schema"
 
 // Operations
 export const getPetsQueryOptions = (variables?: GetPetsQueryVariables) =>

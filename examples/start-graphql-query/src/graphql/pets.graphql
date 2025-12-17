@@ -1,3 +1,15 @@
+# Fragment for common pet fields
+fragment PetFields on Pet {
+  id
+  name
+  status
+  category
+  tags
+  photoUrl
+  createdAt
+  updatedAt
+}
+
 # Basic pet queries using simple filtering
 query GetPets(
   $status: PetStatus
@@ -7,14 +19,7 @@ query GetPets(
 ) {
   pets(status: $status, category: $category, limit: $limit, offset: $offset) {
     data {
-      id
-      name
-      status
-      category
-      tags
-      photoUrl
-      createdAt
-      updatedAt
+      ...PetFields
     }
     total
   }
@@ -22,40 +27,19 @@ query GetPets(
 
 query GetPetById($id: ID!) {
   pet(id: $id) {
-    id
-    name
-    status
-    category
-    tags
-    photoUrl
-    createdAt
-    updatedAt
+    ...PetFields
   }
 }
 
 mutation CreatePet($input: CreatePetInput!) {
   createPet(input: $input) {
-    id
-    name
-    status
-    category
-    tags
-    photoUrl
-    createdAt
-    updatedAt
+    ...PetFields
   }
 }
 
 mutation UpdatePet($id: ID!, $input: UpdatePetInput!) {
   updatePet(id: $id, input: $input) {
-    id
-    name
-    status
-    category
-    tags
-    photoUrl
-    createdAt
-    updatedAt
+    ...PetFields
   }
 }
 

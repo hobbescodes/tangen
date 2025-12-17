@@ -3,26 +3,26 @@
 
 import { formOptions } from "@tanstack/react-form"
 
-import { createPetVariablesSchema, updatePetVariablesSchema, deletePetVariablesSchema } from "./../schema"
-import type { CreatePetVariables, UpdatePetVariables, DeletePetVariables } from "./../schema"
+import { createPetMutationVariablesSchema, updatePetMutationVariablesSchema, deletePetMutationVariablesSchema } from "./../schema"
+import type { CreatePetMutationVariables, UpdatePetMutationVariables, DeletePetMutationVariables } from "./../schema"
 
 export const createPetFormOptions = formOptions({
-  defaultValues: {} as CreatePetVariables,
+  defaultValues: {} as CreatePetMutationVariables,
   validators: {
-    onSubmitAsync: createPetVariablesSchema,
+    onSubmitAsync: createPetMutationVariablesSchema,
   },
 })
 
 export const updatePetFormOptions = formOptions({
-  defaultValues: {} as UpdatePetVariables,
+  defaultValues: {} as UpdatePetMutationVariables,
   validators: {
-    onSubmitAsync: updatePetVariablesSchema,
+    onSubmitAsync: updatePetMutationVariablesSchema,
   },
 })
 
 export const deletePetFormOptions = formOptions({
-  defaultValues: {} as DeletePetVariables,
+  defaultValues: {} as DeletePetMutationVariables,
   validators: {
-    onSubmitAsync: deletePetVariablesSchema,
+    onSubmitAsync: deletePetMutationVariablesSchema,
   },
 })

@@ -110,8 +110,6 @@ export interface OperationGenOptions {
 export interface SchemaGenOptions {
   /** Custom scalar type mappings (for GraphQL) */
   scalars?: Record<string, string>;
-  /** Include operation variable schemas (for form generation, GraphQL only) */
-  includeOperationVariables?: boolean;
 }
 
 /**

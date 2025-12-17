@@ -9,14 +9,10 @@ import type {
 	CreatePetRequest,
 	GetPetParams,
 	UpdatePetRequest,
-	UpdatePetParams,
-	DeletePetParams,
 	ListUsersParams,
 	CreateUserRequest,
 	GetUserParams,
 	UpdateUserRequest,
-	UpdateUserParams,
-	DeleteUserParams,
 } from "./../schema"
 
 // Query Options (GET operations)

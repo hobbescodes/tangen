@@ -5,7 +5,6 @@ import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { createPetFormOptions } from "@/generated/api/form/forms";
 import { createPet } from "@/generated/api/functions";
 
-import type { CreatePetMutationVariables } from "@/generated/api/query/types";
 import type { PetCategory, PetStatus } from "@/generated/api/schema";
 
 export const Route = createFileRoute("/pets/new")({
@@ -25,19 +24,8 @@ function NewPetComponent() {
   const form = useForm({
     ...createPetFormOptions,
     onSubmit: async ({ value }) => {
-      // Cast form values to mutation variables type
-      const variables: CreatePetMutationVariables = {
-        input: {
-          name: value.input.name,
-          category: value.input
-            .category as unknown as CreatePetMutationVariables["input"]["category"],
-          status: value.input
-            .status as unknown as CreatePetMutationVariables["input"]["status"],
-          tags: value.input.tags ?? [],
-          photoUrl: value.input.photoUrl,
-        },
-      };
-      await createPetMutation.mutateAsync(variables);
+      // Types are now consistent - direct pass-through works!
+      await createPetMutation.mutateAsync(value);
     },
   });
 

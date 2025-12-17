@@ -6,8 +6,11 @@ import { updatePetFormOptions } from "@/generated/api/form/forms";
 import { updatePet } from "@/generated/api/functions";
 import { getPetByIdQueryOptions } from "@/generated/api/query/operations";
 
-import type { UpdatePetMutationVariables } from "@/generated/api/query/types";
-import type { PetCategory, PetStatus } from "@/generated/api/schema";
+import type {
+  PetCategory,
+  PetStatus,
+  UpdatePetMutationVariables,
+} from "@/generated/api/schema";
 
 export const Route = createFileRoute("/pets/edit")({
   loader: ({ context }) => {
@@ -31,31 +34,22 @@ function EditPetComponent() {
     },
   });
 
+  const defaultValues: UpdatePetMutationVariables = {
+    id: "1",
+    input: {
+      name: pet?.name,
+      category: pet?.category,
+      status: pet?.status,
+      photoUrl: pet?.photoUrl ?? undefined,
+    },
+  };
+
   const form = useForm({
     ...updatePetFormOptions,
-    defaultValues: {
-      id: "1",
-      input: {
-        name: pet?.name,
-        category: pet?.category as PetCategory | undefined,
-        status: pet?.status as PetStatus | undefined,
-        photoUrl: pet?.photoUrl ?? undefined,
-      },
-    },
+    defaultValues,
     onSubmit: async ({ value }) => {
-      // Cast form values to mutation variables type
-      const variables: UpdatePetMutationVariables = {
-        id: value.id,
-        input: {
-          name: value.input.name,
-          category: value.input
-            .category as unknown as UpdatePetMutationVariables["input"]["category"],
-          status: value.input
-            .status as unknown as UpdatePetMutationVariables["input"]["status"],
-          photoUrl: value.input.photoUrl,
-        },
-      };
-      await updatePetMutation.mutateAsync(variables);
+      // Types are now consistent - direct pass-through works!
+      await updatePetMutation.mutateAsync(value);
     },
   });
 

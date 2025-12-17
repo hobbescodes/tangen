@@ -6,6 +6,12 @@ import { updatePetFormOptions } from "@/generated/api/form/forms";
 import { updatePet } from "@/generated/api/functions";
 import { getPetQueryOptions } from "@/generated/api/query/operations";
 
+import type {
+  PetCategory,
+  PetStatus,
+  UpdatePetRequest,
+} from "@/generated/api/schema";
+
 export const Route = createFileRoute("/pets/edit")({
   loader: ({ context }) => {
     // Load pet ID 1 for demo purposes
@@ -27,14 +33,16 @@ function EditPetComponent() {
     },
   });
 
+  const defaultValues: UpdatePetRequest = {
+    name: pet?.name,
+    category: pet?.category,
+    status: pet?.status,
+    photoUrl: pet?.photoUrl,
+  };
+
   const form = useForm({
     ...updatePetFormOptions,
-    defaultValues: {
-      name: pet?.name,
-      category: pet?.category,
-      status: pet?.status,
-      photoUrl: pet?.photoUrl,
-    },
+    defaultValues,
     onSubmit: async ({ value }) => {
       await updatePetMutation.mutateAsync({
         petId: "1",
@@ -117,7 +125,9 @@ function EditPetComponent() {
                 name={field.name}
                 value={field.state.value ?? ""}
                 onBlur={field.handleBlur}
-                onChange={(e) => field.handleChange(e.target.value)}
+                onChange={(e) =>
+                  field.handleChange(e.target.value as PetCategory)
+                }
                 className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 <option value="dog">Dog</option>
@@ -149,7 +159,9 @@ function EditPetComponent() {
                 name={field.name}
                 value={field.state.value ?? ""}
                 onBlur={field.handleBlur}
-                onChange={(e) => field.handleChange(e.target.value)}
+                onChange={(e) =>
+                  field.handleChange(e.target.value as PetStatus)
+                }
                 className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 <option value="available">Available</option>

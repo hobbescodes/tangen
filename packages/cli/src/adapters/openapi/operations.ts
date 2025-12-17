@@ -110,9 +110,10 @@ function generateTypeImports(operations: ParsedOperation[]): string {
 
   for (const op of operations) {
     const baseName = toPascalCase(op.operationId);
+    const isQuery = op.method === "get";
     const hasParams = op.pathParams.length > 0 || op.queryParams.length > 0;
 
-    // Request body type
+    // Request body type (only for mutations)
     if (op.requestBody) {
       const requestName = `${baseName}Request`;
       if (!seenTypes.has(requestName)) {
@@ -121,8 +122,8 @@ function generateTypeImports(operations: ParsedOperation[]): string {
       }
     }
 
-    // Params type
-    if (hasParams) {
+    // Params type (only for queries - mutations inline their types)
+    if (hasParams && isQuery) {
       const paramsName = `${baseName}Params`;
       if (!seenTypes.has(paramsName)) {
         seenTypes.add(paramsName);

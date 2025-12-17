@@ -223,60 +223,50 @@ type UpdateUserVariables = {
 };
 type DeleteUserVariables = { id: string };
 
-// Helper function for GetPets query
-const handleGetPets = ({ variables }: { variables: GetPetsVariables }) => {
-  const { status, category, limit = 20, offset = 0 } = variables;
-
-  let pets: Pet[];
-  if (status) {
-    pets = getPetsByStatus(status);
-  } else if (category) {
-    pets = getPetsByCategory(category);
-  } else {
-    pets = getPets();
-  }
-
-  const total = pets.length;
-  const paginatedPets = pets.slice(offset, offset + limit);
-
-  return HttpResponse.json({
-    data: {
-      pets: {
-        data: paginatedPets,
-        total,
-      },
-    },
-  });
-};
-
-// Helper function for GetPetById query
-const handleGetPetById = ({
-  variables,
-}: {
-  variables: GetPetByIdVariables;
-}) => {
-  const { id } = variables;
-  const pet = getPetById(id);
-  return HttpResponse.json({ data: { pet } });
-};
-
 export const graphqlHandlers: GraphQLHandler[] = [
   // Pet Queries - matching tangrams generated operation names
-  graphql.query<{ pets: { data: Pet[]; total: number } }, GetPetsVariables>(
-    "GetPets",
-    handleGetPets,
-  ),
+  graphql.query("GetPets", ({ variables }) => {
+    const {
+      status,
+      category,
+      limit = 20,
+      offset = 0,
+    } = variables as GetPetsVariables;
 
-  graphql.query<{ pet: Pet | undefined }, GetPetByIdVariables>(
-    "GetPetById",
-    handleGetPetById,
-  ),
+    let pets: Pet[];
+    if (status) {
+      pets = getPetsByStatus(status);
+    } else if (category) {
+      pets = getPetsByCategory(category);
+    } else {
+      pets = getPets();
+    }
 
-  graphql.query<
-    { pets_filtered: { data: Pet[]; total: number } },
-    ListPetsFilteredVariables
-  >("ListPetsFiltered", ({ variables }) => {
-    const { where, limit = 20, offset = 0 } = variables;
+    const total = pets.length;
+    const paginatedPets = pets.slice(offset, offset + limit);
+
+    return HttpResponse.json({
+      data: {
+        pets: {
+          data: paginatedPets,
+          total,
+        },
+      },
+    });
+  }),
+
+  graphql.query("GetPetById", ({ variables }) => {
+    const { id } = variables as GetPetByIdVariables;
+    const pet = getPetById(id);
+    return HttpResponse.json({ data: { pet } });
+  }),
+
+  graphql.query("ListPetsFiltered", ({ variables }) => {
+    const {
+      where,
+      limit = 20,
+      offset = 0,
+    } = variables as ListPetsFilteredVariables;
 
     let pets = getPets();
     pets = applyPetBoolExp(pets, where);
@@ -294,44 +284,39 @@ export const graphqlHandlers: GraphQLHandler[] = [
     });
   }),
 
-  graphql.query<{ user: User | undefined }, GetUserVariables>(
-    "GetUser",
-    ({ variables }) => {
-      const { id } = variables;
-      const user = getUserById(id);
-      return HttpResponse.json({ data: { user } });
-    },
-  ),
+  graphql.query("GetUser", ({ variables }) => {
+    const { id } = variables as GetUserVariables;
+    const user = getUserById(id);
+    return HttpResponse.json({ data: { user } });
+  }),
 
-  graphql.query<{ users: { data: User[]; total: number } }, ListUsersVariables>(
-    "ListUsers",
-    ({ variables }) => {
-      const { role, limit = 20, offset = 0 } = variables;
+  graphql.query("ListUsers", ({ variables }) => {
+    const { role, limit = 20, offset = 0 } = variables as ListUsersVariables;
 
-      let users: User[] = getUsers();
-      if (role) {
-        users = users.filter((user) => user.role === role);
-      }
+    let users: User[] = getUsers();
+    if (role) {
+      users = users.filter((user) => user.role === role);
+    }
 
-      const total = users.length;
-      const paginatedUsers = users.slice(offset, offset + limit);
+    const total = users.length;
+    const paginatedUsers = users.slice(offset, offset + limit);
 
-      return HttpResponse.json({
-        data: {
-          users: {
-            data: paginatedUsers,
-            total,
-          },
+    return HttpResponse.json({
+      data: {
+        users: {
+          data: paginatedUsers,
+          total,
         },
-      });
-    },
-  ),
+      },
+    });
+  }),
 
-  graphql.query<
-    { users_filtered: { data: User[]; total: number } },
-    ListUsersFilteredVariables
-  >("ListUsersFiltered", ({ variables }) => {
-    const { where, limit = 20, offset = 0 } = variables;
+  graphql.query("ListUsersFiltered", ({ variables }) => {
+    const {
+      where,
+      limit = 20,
+      offset = 0,
+    } = variables as ListUsersFilteredVariables;
 
     let users = getUsers();
     users = applyUserBoolExp(users, where);
@@ -350,57 +335,39 @@ export const graphqlHandlers: GraphQLHandler[] = [
   }),
 
   // Mutations
-  graphql.mutation<{ createPet: Pet }, CreatePetVariables>(
-    "CreatePet",
-    ({ variables }) => {
-      const { input } = variables;
-      const pet = createPet(input);
-      return HttpResponse.json({ data: { createPet: pet } });
-    },
-  ),
+  graphql.mutation("CreatePet", ({ variables }) => {
+    const { input } = variables as CreatePetVariables;
+    const pet = createPet(input);
+    return HttpResponse.json({ data: { createPet: pet } });
+  }),
 
-  graphql.mutation<{ updatePet: Pet | undefined }, UpdatePetVariables>(
-    "UpdatePet",
-    ({ variables }) => {
-      const { id, input } = variables;
-      const pet = updatePet(id, input);
-      return HttpResponse.json({ data: { updatePet: pet } });
-    },
-  ),
+  graphql.mutation("UpdatePet", ({ variables }) => {
+    const { id, input } = variables as UpdatePetVariables;
+    const pet = updatePet(id, input);
+    return HttpResponse.json({ data: { updatePet: pet } });
+  }),
 
-  graphql.mutation<{ deletePet: boolean }, DeletePetVariables>(
-    "DeletePet",
-    ({ variables }) => {
-      const { id } = variables;
-      const deleted = deletePet(id);
-      return HttpResponse.json({ data: { deletePet: deleted } });
-    },
-  ),
+  graphql.mutation("DeletePet", ({ variables }) => {
+    const { id } = variables as DeletePetVariables;
+    const deleted = deletePet(id);
+    return HttpResponse.json({ data: { deletePet: deleted } });
+  }),
 
-  graphql.mutation<{ createUser: User }, CreateUserVariables>(
-    "CreateUser",
-    ({ variables }) => {
-      const { input } = variables;
-      const user = createUser(input);
-      return HttpResponse.json({ data: { createUser: user } });
-    },
-  ),
+  graphql.mutation("CreateUser", ({ variables }) => {
+    const { input } = variables as CreateUserVariables;
+    const user = createUser(input);
+    return HttpResponse.json({ data: { createUser: user } });
+  }),
 
-  graphql.mutation<{ updateUser: User | undefined }, UpdateUserVariables>(
-    "UpdateUser",
-    ({ variables }) => {
-      const { id, input } = variables;
-      const user = updateUser(id, input);
-      return HttpResponse.json({ data: { updateUser: user } });
-    },
-  ),
+  graphql.mutation("UpdateUser", ({ variables }) => {
+    const { id, input } = variables as UpdateUserVariables;
+    const user = updateUser(id, input);
+    return HttpResponse.json({ data: { updateUser: user } });
+  }),
 
-  graphql.mutation<{ deleteUser: boolean }, DeleteUserVariables>(
-    "DeleteUser",
-    ({ variables }) => {
-      const { id } = variables;
-      const deleted = deleteUser(id);
-      return HttpResponse.json({ data: { deleteUser: deleted } });
-    },
-  ),
+  graphql.mutation("DeleteUser", ({ variables }) => {
+    const { id } = variables as DeleteUserVariables;
+    const deleted = deleteUser(id);
+    return HttpResponse.json({ data: { deleteUser: deleted } });
+  }),
 ];

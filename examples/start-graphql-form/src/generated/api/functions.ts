@@ -14,7 +14,21 @@ import type {
 	UpdatePetMutationVariables,
 	DeletePetMutation,
 	DeletePetMutationVariables,
-} from "./query/types"
+} from "./schema"
+
+// Fragment Documents
+const PetFieldsFragmentDoc = /* GraphQL */ `
+fragment PetFields on Pet {
+  id
+  name
+  status
+  category
+  tags
+  photoUrl
+  createdAt
+  updatedAt
+}
+`
 
 // Documents
 const GetPetsDocument = /* GraphQL */ `
@@ -26,64 +40,36 @@ query GetPets(
 ) {
   pets(status: $status, category: $category, limit: $limit, offset: $offset) {
     data {
-      id
-      name
-      status
-      category
-      tags
-      photoUrl
-      createdAt
-      updatedAt
+      ...PetFields
     }
     total
   }
 }
-`
+` + PetFieldsFragmentDoc
 
 const GetPetByIdDocument = /* GraphQL */ `
 query GetPetById($id: ID!) {
   pet(id: $id) {
-    id
-    name
-    status
-    category
-    tags
-    photoUrl
-    createdAt
-    updatedAt
+    ...PetFields
   }
 }
-`
+` + PetFieldsFragmentDoc
 
 const CreatePetDocument = /* GraphQL */ `
 mutation CreatePet($input: CreatePetInput!) {
   createPet(input: $input) {
-    id
-    name
-    status
-    category
-    tags
-    photoUrl
-    createdAt
-    updatedAt
+    ...PetFields
   }
 }
-`
+` + PetFieldsFragmentDoc
 
 const UpdatePetDocument = /* GraphQL */ `
 mutation UpdatePet($id: ID!, $input: UpdatePetInput!) {
   updatePet(id: $id, input: $input) {
-    id
-    name
-    status
-    category
-    tags
-    photoUrl
-    createdAt
-    updatedAt
+    ...PetFields
   }
 }
-`
+` + PetFieldsFragmentDoc
 
 const DeletePetDocument = /* GraphQL */ `
 mutation DeletePet($id: ID!) {
