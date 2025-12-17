@@ -6,11 +6,7 @@ exports[`generateFunctions > matches snapshot for mutation-only functions 1`] = 
 
 import { getClient } from "./client"
 
-import type {
-	CreateNewUserMutation,
-	CreateNewUserMutationVariables,
-	ResetAllUsersMutation,
-} from "./schema"
+import type { CreateNewUserMutation, CreateNewUserMutationVariables, ResetAllUsersMutation } from "./schema"
 
 // Documents
 const CreateNewUserDocument = /* GraphQL */ \`
@@ -43,11 +39,7 @@ exports[`generateFunctions > matches snapshot for query-only functions 1`] = `
 
 import { getClient } from "./client"
 
-import type {
-	GetUserByIdQuery,
-	GetUserByIdQueryVariables,
-	GetAllUsersQuery,
-} from "./schema"
+import type { GetAllUsersQuery, GetUserByIdQuery, GetUserByIdQueryVariables } from "./schema"
 
 // Documents
 const GetUserByIdDocument = /* GraphQL */ \`
@@ -83,18 +75,7 @@ exports[`generateFunctions > matches snapshot for user functions 1`] = `
 
 import { getClient } from "./client"
 
-import type {
-	GetUserQuery,
-	GetUserQueryVariables,
-	ListUsersQuery,
-	ListUsersQueryVariables,
-	CreateUserMutation,
-	CreateUserMutationVariables,
-	UpdateUserMutation,
-	UpdateUserMutationVariables,
-	DeleteUserMutation,
-	DeleteUserMutationVariables,
-} from "./schema"
+import type { CreateUserMutation, CreateUserMutationVariables, DeleteUserMutation, DeleteUserMutationVariables, GetUserQuery, GetUserQueryVariables, ListUsersQuery, ListUsersQueryVariables, UpdateUserMutation, UpdateUserMutationVariables } from "./schema"
 
 // Fragment Documents
 const UserFieldsFragmentDoc = /* GraphQL */ \`

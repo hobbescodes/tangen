@@ -36,10 +36,10 @@ export function generateOpenAPIOperations(
     ["post", "put", "patch", "delete"].includes(op.method),
   );
 
-  // Imports
+  // External imports (sorted alphabetically)
   const tanstackImports: string[] = [];
-  if (queries.length > 0) tanstackImports.push("queryOptions");
   if (mutations.length > 0) tanstackImports.push("mutationOptions");
+  if (queries.length > 0) tanstackImports.push("queryOptions");
 
   if (tanstackImports.length > 0) {
     lines.push(
@@ -47,23 +47,25 @@ export function generateOpenAPIOperations(
     );
   }
 
-  // Import functions from functions.ts
-  const functionImports = getFunctionImports(operations);
+  // Internal imports (sorted alphabetically)
+  const functionImports = getFunctionImports(operations).sort();
   if (functionImports.length > 0) {
+    lines.push("");
     lines.push(
       `import { ${functionImports.join(", ")} } from "${FUNCTIONS_IMPORT_PATH}"`,
     );
   }
-  lines.push("");
 
-  // Type imports (only needed for function signatures)
+  // Type imports (sorted alphabetically, always last with blank line)
   const typeImports = generateTypeImports(operations);
-  if (typeImports) {
-    lines.push("import type {");
-    lines.push(typeImports);
-    lines.push(`} from "${options.typesImportPath}"`);
+  if (typeImports.length > 0) {
     lines.push("");
+    lines.push(
+      `import type { ${typeImports.join(", ")} } from "${options.typesImportPath}"`,
+    );
   }
+
+  lines.push("");
 
   // Always include source name in query keys for consistency
   const queryKeyPrefix = `"${options.sourceName}", `;
@@ -102,11 +104,10 @@ function getFunctionImports(operations: ParsedOperation[]): string[] {
 }
 
 /**
- * Generate imports for types
+ * Generate imports for types (sorted alphabetically)
  */
-function generateTypeImports(operations: ParsedOperation[]): string {
-  const typeImportsList: string[] = [];
-  const seenTypes = new Set<string>();
+function generateTypeImports(operations: ParsedOperation[]): string[] {
+  const typeImportsSet = new Set<string>();
 
   for (const op of operations) {
     const baseName = toPascalCase(op.operationId);
@@ -115,24 +116,16 @@ function generateTypeImports(operations: ParsedOperation[]): string {
 
     // Request body type (only for mutations)
     if (op.requestBody) {
-      const requestName = `${baseName}Request`;
-      if (!seenTypes.has(requestName)) {
-        seenTypes.add(requestName);
-        typeImportsList.push(`\t${requestName},`);
-      }
+      typeImportsSet.add(`${baseName}Request`);
     }
 
     // Params type (only for queries - mutations inline their types)
     if (hasParams && isQuery) {
-      const paramsName = `${baseName}Params`;
-      if (!seenTypes.has(paramsName)) {
-        seenTypes.add(paramsName);
-        typeImportsList.push(`\t${paramsName},`);
-      }
+      typeImportsSet.add(`${baseName}Params`);
     }
   }
 
-  return typeImportsList.join("\n");
+  return [...typeImportsSet].sort();
 }
 
 /**

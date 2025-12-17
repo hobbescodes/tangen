@@ -34,24 +34,29 @@ export function generateOpenAPIFunctions(
     ["post", "put", "patch", "delete"].includes(op.method),
   );
 
-  // Import client helpers
+  // Import client helpers (internal import)
   lines.push(
     `import { $fetch, buildPath, buildQuery } from "${options.clientImportPath}"`,
   );
-  lines.push("");
 
-  // Type and schema imports
+  // Schema value imports (internal import)
   const { typeImports, schemaImports } = generateImports(operations);
-  if (typeImports || schemaImports) {
-    const allImports: string[] = [];
-    if (typeImports) allImports.push(typeImports);
-    if (schemaImports) allImports.push(schemaImports);
-
-    lines.push("import {");
-    lines.push(allImports.join("\n"));
-    lines.push(`} from "${options.schemaImportPath}"`);
+  if (schemaImports.length > 0) {
     lines.push("");
+    lines.push(
+      `import { ${schemaImports.join(", ")} } from "${options.schemaImportPath}"`,
+    );
   }
+
+  // Type imports (always last, separated by blank line)
+  if (typeImports.length > 0) {
+    lines.push("");
+    lines.push(
+      `import type { ${typeImports.join(", ")} } from "${options.schemaImportPath}"`,
+    );
+  }
+
+  lines.push("");
 
   // Generate query functions for GET operations
   if (queries.length > 0) {
@@ -80,59 +85,40 @@ export function generateOpenAPIFunctions(
 }
 
 /**
- * Generate imports for types and schemas
+ * Generate imports for types and schemas (sorted alphabetically)
  */
 function generateImports(operations: ParsedOperation[]): {
-  typeImports: string;
-  schemaImports: string;
+  typeImports: string[];
+  schemaImports: string[];
 } {
-  const typeImportsList: string[] = [];
-  const schemaImportsList: string[] = [];
-  const seenTypes = new Set<string>();
-  const seenSchemas = new Set<string>();
+  const typeImportsSet = new Set<string>();
+  const schemaImportsSet = new Set<string>();
 
   for (const op of operations) {
     const baseName = toPascalCase(op.operationId);
     const hasParams = op.pathParams.length > 0 || op.queryParams.length > 0;
 
-    // Response type
+    // Response type and schema
     if (op.responseSchema) {
-      const responseName = `${baseName}Response`;
-      if (!seenTypes.has(responseName)) {
-        seenTypes.add(responseName);
-        typeImportsList.push(`\ttype ${responseName},`);
-      }
-      // Response schema for runtime validation
-      const schemaName = toSchemaName(`${baseName}Response`);
-      if (!seenSchemas.has(schemaName)) {
-        seenSchemas.add(schemaName);
-        schemaImportsList.push(`\t${schemaName},`);
-      }
+      typeImportsSet.add(`${baseName}Response`);
+      schemaImportsSet.add(toSchemaName(`${baseName}Response`));
     }
 
     // Request body type
     if (op.requestBody) {
-      const requestName = `${baseName}Request`;
-      if (!seenTypes.has(requestName)) {
-        seenTypes.add(requestName);
-        typeImportsList.push(`\ttype ${requestName},`);
-      }
+      typeImportsSet.add(`${baseName}Request`);
     }
 
     // Params type - only for GET operations (queries use the Params type, mutations use inline types)
     const isQuery = op.method === "get";
     if (hasParams && isQuery) {
-      const paramsName = `${baseName}Params`;
-      if (!seenTypes.has(paramsName)) {
-        seenTypes.add(paramsName);
-        typeImportsList.push(`\ttype ${paramsName},`);
-      }
+      typeImportsSet.add(`${baseName}Params`);
     }
   }
 
   return {
-    typeImports: typeImportsList.join("\n"),
-    schemaImports: schemaImportsList.join("\n"),
+    typeImports: [...typeImportsSet].sort(),
+    schemaImports: [...schemaImportsSet].sort(),
   };
 }
 

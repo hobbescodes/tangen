@@ -30,6 +30,45 @@ import type { ParsedOperation } from "./schema";
 const FUNCTIONS_IMPORT_PATH = "../functions";
 
 type OpenAPISchema = OpenAPIV3.SchemaObject | OpenAPIV3_1.SchemaObject;
+type OpenAPIArraySchema =
+  | OpenAPIV3.ArraySchemaObject
+  | OpenAPIV3_1.ArraySchemaObject;
+
+/**
+ * Check if a response schema contains an array (either directly or wrapped)
+ * Returns the array schema and selector path if found
+ */
+function findArrayInResponse(
+  responseSchema: OpenAPISchema,
+): { arraySchema: OpenAPIArraySchema; selectorPath: string | null } | null {
+  // Direct array response
+  if (responseSchema.type === "array" && "items" in responseSchema) {
+    return {
+      arraySchema: responseSchema as OpenAPIArraySchema,
+      selectorPath: null,
+    };
+  }
+
+  // Wrapped array response (e.g., { data: Pet[], total: number })
+  if (responseSchema.type === "object" && responseSchema.properties) {
+    // Look for common wrapper property names
+    const wrapperNames = ["data", "items", "results", "records", "rows"];
+
+    for (const wrapperName of wrapperNames) {
+      const prop = responseSchema.properties[wrapperName] as
+        | OpenAPISchema
+        | undefined;
+      if (prop?.type === "array" && "items" in prop) {
+        return {
+          arraySchema: prop as OpenAPIArraySchema,
+          selectorPath: wrapperName,
+        };
+      }
+    }
+  }
+
+  return null;
+}
 
 /**
  * Discover entities from an OpenAPI schema for collection generation
@@ -43,12 +82,13 @@ export function discoverOpenAPIEntities(
   const entities: CollectionEntity[] = [];
 
   // Find all GET operations that return arrays - these are our list queries
+  // Support both direct arrays and wrapped arrays (e.g., { data: Pet[] })
   const listQueries = operations.filter((op) => {
     if (op.method !== "get") return false;
     if (!op.responseSchema) return false;
 
-    // Check if response is an array
-    return op.responseSchema.type === "array";
+    // Check if response contains an array (directly or wrapped)
+    return findArrayInResponse(op.responseSchema as OpenAPISchema) !== null;
   });
 
   for (const listQuery of listQueries) {
@@ -79,18 +119,27 @@ function discoverEntityFromListQuery(
   warnings: string[] = [],
 ): CollectionEntity | null {
   const responseSchema = listQuery.responseSchema as OpenAPISchema;
-  if (!responseSchema || responseSchema.type !== "array") {
+  if (!responseSchema) {
     return null;
   }
 
-  // Get the item schema from the array
-  const itemSchema = responseSchema.items as OpenAPISchema | undefined;
+  // Find the array in the response (direct or wrapped)
+  const arrayInfo = findArrayInResponse(responseSchema);
+  if (!arrayInfo) {
+    return null;
+  }
+
+  // Get the item schema from the array (arraySchema is typed as OpenAPIArraySchema which has items)
+  const itemSchema = arrayInfo.arraySchema.items as OpenAPISchema | undefined;
   if (!itemSchema) {
     warnings.push(
       `Could not determine item type for list query ${listQuery.operationId}`,
     );
     return null;
   }
+
+  // Store the selector path for wrapped responses
+  const selectorPath = arrayInfo.selectorPath;
 
   // Determine entity name from the path or response schema
   const entityName = inferEntityName(listQuery.path, itemSchema, document);
@@ -156,6 +205,7 @@ function discoverEntityFromListQuery(
       operationName: listQuery.operationId,
       queryKey: [entityName],
       paramsTypeName,
+      selectorPath: selectorPath ?? undefined,
     },
     mutations,
     // On-demand mode properties
@@ -325,6 +375,21 @@ function getTypeScriptType(schema: OpenAPISchema): string {
 }
 
 /**
+ * Extract the path parameter name from a single-item path
+ * e.g., "/pets/{petId}" -> "petId"
+ */
+function extractPathParamName(op: ParsedOperation): string | undefined {
+  // First try to get from the parsed pathParams array
+  if (op.pathParams.length > 0) {
+    return op.pathParams[0]?.name;
+  }
+
+  // Fallback: extract from the path string itself
+  const match = op.path.match(/\{([^}]+)\}$/);
+  return match?.[1];
+}
+
+/**
  * Find CRUD mutations for an entity based on path patterns
  */
 function findCrudMutations(
@@ -361,6 +426,7 @@ function findCrudMutations(
         type: "update",
         operationName: op.operationId,
         inputTypeName: getInputTypeName(op),
+        pathParamName: extractPathParamName(op),
       });
     }
 
@@ -369,6 +435,7 @@ function findCrudMutations(
       mutations.push({
         type: "delete",
         operationName: op.operationId,
+        pathParamName: extractPathParamName(op),
       });
     }
   }
@@ -409,38 +476,16 @@ export function generateOpenAPICollections(
   // Check if any entities need predicate translation (on-demand mode)
   const hasOnDemandEntities = entities.some(needsPredicateTranslation);
 
-  // Imports
+  // External imports (sorted alphabetically by package)
   lines.push(
     'import { queryCollectionOptions } from "@tanstack/query-db-collection"',
   );
-  lines.push('import { createCollection } from "@tanstack/react-db"');
-
-  // Add predicate imports if needed
   if (hasOnDemandEntities) {
     lines.push(getPredicateImports());
   }
+  lines.push('import { createCollection } from "@tanstack/react-db"');
 
-  lines.push("");
-  lines.push('import type { QueryClient } from "@tanstack/react-query"');
-
-  // Import types from the types file
-  const typeNames = entities.map((e) => e.typeName);
-
-  // Also import params types for on-demand entities
-  const paramsTypeNames = entities
-    .filter(needsPredicateTranslation)
-    .map((e) => e.listQuery.paramsTypeName)
-    .filter((name): name is string => !!name);
-
-  const allTypeImports = [...new Set([...typeNames, ...paramsTypeNames])];
-
-  if (allTypeImports.length > 0) {
-    lines.push(
-      `import type { ${allTypeImports.join(", ")} } from "${options.typesImportPath}"`,
-    );
-  }
-
-  // Import query/mutation functions from functions.ts
+  // Internal imports (sorted alphabetically)
   const queryFnImports = entities.map(
     (e) => `${toCamelCase(e.listQuery.operationName)}`,
   );
@@ -449,11 +494,33 @@ export function generateOpenAPICollections(
   );
   const allFunctionImports = [
     ...new Set([...queryFnImports, ...mutationFnImports]),
-  ];
+  ].sort();
 
   if (allFunctionImports.length > 0) {
+    lines.push("");
     lines.push(
       `import { ${allFunctionImports.join(", ")} } from "${FUNCTIONS_IMPORT_PATH}"`,
+    );
+  }
+
+  // Type imports (sorted alphabetically, always last with blank line)
+  const typeImports: string[] = ["QueryClient"];
+
+  // Import params types for on-demand entities (these are actually used in predicate translators)
+  const paramsTypeNames = entities
+    .filter(needsPredicateTranslation)
+    .map((e) => e.listQuery.paramsTypeName)
+    .filter((name): name is string => !!name)
+    .sort();
+
+  lines.push("");
+  lines.push(
+    `import type { ${typeImports.join(", ")} } from "@tanstack/react-query"`,
+  );
+
+  if (paramsTypeNames.length > 0) {
+    lines.push(
+      `import type { ${paramsTypeNames.join(", ")} } from "${options.typesImportPath}"`,
     );
   }
 
@@ -510,16 +577,29 @@ function generateEntityCollectionOptions(
   lines.push(`      queryKey: ${JSON.stringify(entity.listQuery.queryKey)},`);
 
   // Generate queryFn based on sync mode
+  const selectorPath = entity.listQuery.selectorPath;
   if (isOnDemand) {
     lines.push(`      syncMode: "on-demand",`);
     lines.push(`      queryFn: async (ctx) => {`);
     lines.push(
       `        const params = ${translatorFn}(ctx.meta?.loadSubsetOptions)`,
     );
-    lines.push(`        return ${listQueryFn}(params)`);
+    if (selectorPath) {
+      lines.push(`        const response = await ${listQueryFn}(params)`);
+      lines.push(`        return response.${selectorPath}`);
+    } else {
+      lines.push(`        return ${listQueryFn}(params)`);
+    }
     lines.push(`      },`);
   } else {
-    lines.push(`      queryFn: async () => ${listQueryFn}(),`);
+    if (selectorPath) {
+      lines.push(`      queryFn: async () => {`);
+      lines.push(`        const response = await ${listQueryFn}()`);
+      lines.push(`        return response.${selectorPath}`);
+      lines.push(`      },`);
+    } else {
+      lines.push(`      queryFn: async () => ${listQueryFn}(),`);
+    }
   }
 
   lines.push(`      queryClient,`);
@@ -533,26 +613,33 @@ function generateEntityCollectionOptions(
   if (insertMutation) {
     const insertFn = toCamelCase(insertMutation.operationName);
     lines.push(`      onInsert: async ({ transaction }) => {`);
+    // OpenAPI functions use { body: ... } signature
     lines.push(
-      `        await Promise.all(transaction.mutations.map((m) => ${insertFn}(m.modified)))`,
+      `        await Promise.all(transaction.mutations.map((m) => ${insertFn}({ body: m.modified })))`,
     );
     lines.push(`      },`);
   }
 
   if (updateMutation) {
     const updateFn = toCamelCase(updateMutation.operationName);
+    // Use pathParamName for the function argument, keyField for accessing the entity value
+    const pathParam = updateMutation.pathParamName || entity.keyField;
     lines.push(`      onUpdate: async ({ transaction }) => {`);
+    // OpenAPI functions use { pathParam: ..., body: ... } signature
     lines.push(
-      `        await Promise.all(transaction.mutations.map((m) => ${updateFn}(m.original.${entity.keyField}, m.changes)))`,
+      `        await Promise.all(transaction.mutations.map((m) => ${updateFn}({ ${pathParam}: m.original.${entity.keyField}, body: m.changes })))`,
     );
     lines.push(`      },`);
   }
 
   if (deleteMutation) {
     const deleteFn = toCamelCase(deleteMutation.operationName);
+    // Use pathParamName for the function argument, keyField for accessing the entity value
+    const pathParam = deleteMutation.pathParamName || entity.keyField;
     lines.push(`      onDelete: async ({ transaction }) => {`);
+    // OpenAPI functions use { pathParam: ... } signature
     lines.push(
-      `        await Promise.all(transaction.mutations.map((m) => ${deleteFn}(m.key)))`,
+      `        await Promise.all(transaction.mutations.map((m) => ${deleteFn}({ ${pathParam}: m.key })))`,
     );
     lines.push(`      },`);
   }

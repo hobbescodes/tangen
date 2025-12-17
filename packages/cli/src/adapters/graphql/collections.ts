@@ -396,38 +396,16 @@ export function generateGraphQLCollections(
   // Check if any entities need predicate translation (on-demand mode)
   const hasOnDemandEntities = entities.some(needsPredicateTranslation);
 
-  // Imports
+  // External imports (sorted alphabetically by package)
   lines.push(
     'import { queryCollectionOptions } from "@tanstack/query-db-collection"',
   );
-  lines.push('import { createCollection } from "@tanstack/react-db"');
-
-  // Add predicate imports if needed
   if (hasOnDemandEntities) {
     lines.push(getPredicateImports());
   }
+  lines.push('import { createCollection } from "@tanstack/react-db"');
 
-  lines.push("");
-  lines.push('import type { QueryClient } from "@tanstack/react-query"');
-
-  // Import types from the types file
-  const typeNames = entities.map((e) => e.typeName);
-
-  // Also import variables types for on-demand entities
-  const variablesTypeNames = entities
-    .filter(needsPredicateTranslation)
-    .map((e) => e.listQuery.paramsTypeName)
-    .filter((name): name is string => !!name);
-
-  const allTypeImports = [...new Set([...typeNames, ...variablesTypeNames])];
-
-  if (allTypeImports.length > 0) {
-    lines.push(
-      `import type { ${allTypeImports.join(", ")} } from "${options.typesImportPath}"`,
-    );
-  }
-
-  // Import query/mutation functions from functions.ts
+  // Internal imports (sorted alphabetically)
   const queryFnImports = entities.map(
     (e) => `${toCamelCase(e.listQuery.operationName)}`,
   );
@@ -436,11 +414,33 @@ export function generateGraphQLCollections(
   );
   const allFunctionImports = [
     ...new Set([...queryFnImports, ...mutationFnImports]),
-  ];
+  ].sort();
 
   if (allFunctionImports.length > 0) {
+    lines.push("");
     lines.push(
       `import { ${allFunctionImports.join(", ")} } from "${FUNCTIONS_IMPORT_PATH}"`,
+    );
+  }
+
+  // Type imports (sorted alphabetically, always last with blank line)
+  const typeImports: string[] = ["QueryClient"];
+
+  // Import variables types for on-demand entities (these are actually used in predicate translators)
+  const variablesTypeNames = entities
+    .filter(needsPredicateTranslation)
+    .map((e) => e.listQuery.paramsTypeName)
+    .filter((name): name is string => !!name)
+    .sort();
+
+  lines.push("");
+  lines.push(
+    `import type { ${typeImports.join(", ")} } from "@tanstack/react-query"`,
+  );
+
+  if (variablesTypeNames.length > 0) {
+    lines.push(
+      `import type { ${variablesTypeNames.join(", ")} } from "${options.typesImportPath}"`,
     );
   }
 

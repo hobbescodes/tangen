@@ -1,21 +1,29 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { useLiveQuery } from "@tanstack/react-db";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { getPetQueryOptions } from "@/generated/api/query/operations";
-
-export const Route = createFileRoute("/pets/$petId")({
-  loader: ({ context, params }) => {
-    context.queryClient.ensureQueryData(
-      getPetQueryOptions({ petId: params.petId }),
-    );
-  },
+export const Route = createFileRoute("/pets/$petId/")({
   component: PetDetailComponent,
 });
 
 function PetDetailComponent() {
   const { petId } = Route.useParams();
+  const navigate = useNavigate();
+  const { collections } = Route.useRouteContext();
 
-  const { data: pet } = useSuspenseQuery(getPetQueryOptions({ petId }));
+  // Use live query with a filter to get a single pet
+  const { data: pets } = useLiveQuery(collections.pets, (q) =>
+    q.where("id", "=", petId),
+  );
+
+  const pet = pets[0];
+
+  const handleDelete = async () => {
+    if (!pet) return;
+    if (!confirm("Are you sure you want to delete this pet?")) return;
+
+    await collections.pets.delete(pet.id);
+    navigate({ to: "/pets" });
+  };
 
   if (!pet) {
     return (
@@ -70,7 +78,7 @@ function PetDetailComponent() {
         )}
 
         {pet.photoUrl && (
-          <div>
+          <div className="mb-4">
             <h2 className="mb-2 font-semibold text-gray-700">Photo</h2>
             <img
               src={pet.photoUrl}
@@ -79,6 +87,23 @@ function PetDetailComponent() {
             />
           </div>
         )}
+
+        <div className="flex gap-4">
+          <Link
+            to="/pets/$petId/edit"
+            params={{ petId: pet.id }}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+          >
+            Edit Pet
+          </Link>
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="rounded-lg border border-red-300 px-4 py-2 text-red-700 hover:bg-red-50"
+          >
+            Delete Pet
+          </button>
+        </div>
       </div>
     </div>
   );

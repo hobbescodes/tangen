@@ -3,32 +3,9 @@
 
 import { $fetch, buildPath, buildQuery } from "./client"
 
-import {
-	type ListPetsResponse,
-	type ListPetsParams,
-	type CreatePetResponse,
-	type CreatePetRequest,
-	type GetPetResponse,
-	type GetPetParams,
-	type UpdatePetResponse,
-	type UpdatePetRequest,
-	type ListUsersResponse,
-	type ListUsersParams,
-	type CreateUserResponse,
-	type CreateUserRequest,
-	type GetUserResponse,
-	type GetUserParams,
-	type UpdateUserResponse,
-	type UpdateUserRequest,
-	listPetsResponseSchema,
-	createPetResponseSchema,
-	getPetResponseSchema,
-	updatePetResponseSchema,
-	listUsersResponseSchema,
-	createUserResponseSchema,
-	getUserResponseSchema,
-	updateUserResponseSchema,
-} from "./schema"
+import { createPetResponseSchema, createUserResponseSchema, getPetResponseSchema, getUserResponseSchema, listPetsResponseSchema, listUsersResponseSchema, updatePetResponseSchema, updateUserResponseSchema } from "./schema"
+
+import type { CreatePetRequest, CreatePetResponse, CreateUserRequest, CreateUserResponse, GetPetParams, GetPetResponse, GetUserParams, GetUserResponse, ListPetsParams, ListPetsResponse, ListUsersParams, ListUsersResponse, UpdatePetRequest, UpdatePetResponse, UpdateUserRequest, UpdateUserResponse } from "./schema"
 
 // Query Functions (GET operations)
 

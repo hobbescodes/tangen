@@ -143,6 +143,11 @@ export interface CollectionMutation {
   operationName: string;
   /** The input type name for this mutation (if applicable) */
   inputTypeName?: string;
+  /**
+   * The path parameter name for update/delete mutations (OpenAPI only)
+   * e.g., "petId" for /pets/{petId}
+   */
+  pathParamName?: string;
 }
 
 /**
@@ -165,6 +170,11 @@ export interface CollectionEntity {
     queryKey: string[];
     /** The params type name for the list query function (if it accepts params) */
     paramsTypeName?: string;
+    /**
+     * Selector path for wrapped array responses (e.g., "data" for { data: Pet[], total: number })
+     * If null/undefined, the response is a direct array
+     */
+    selectorPath?: string;
   };
   /** Available mutations for this entity */
   mutations: CollectionMutation[];
