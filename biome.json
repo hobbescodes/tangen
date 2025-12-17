@@ -39,7 +39,7 @@
       "!!**/test/fixtures/graphql/anonymous.graphql",
       "!!apps/docs/.source",
       "!!**/*/*.gen.ts",
-      "!!**/*/mockServiceWorker.js"
+      "!!**/public"
     ]
   },
   "formatter": {
