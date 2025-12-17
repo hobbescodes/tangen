@@ -23,6 +23,8 @@ export default defineConfig({
         "src/cli/commands/init.ts",
         "src/cli/commands/generate.ts",
         "src/core/generator.ts",
+        // GraphQL functions generator - tested indirectly through adapter integration
+        "src/generators/functions.ts",
       ],
       thresholds: {
         lines: 80,
