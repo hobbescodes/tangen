@@ -262,12 +262,12 @@ const usersCollection = userCollectionOptions(queryClient)
 Use the collection with TanStack DB's React hooks:
 
 ```typescript
-import { useQuery } from "@tanstack/react-db"
+import { useLiveQuery } from "@tanstack/react-db"
 import { userCollectionOptions } from "./generated/graphql/db/collections"
 
 function UserList({ queryClient }: { queryClient: QueryClient }) {
   const usersCollection = userCollectionOptions(queryClient)
-  const { data: users } = useQuery(usersCollection)
+  const { data: users } = useLiveQuery((q) => q.from({ user: usersCollection }))
 
   return (
     <ul>
@@ -275,31 +275,6 @@ function UserList({ queryClient }: { queryClient: QueryClient }) {
         <li key={user.id}>{user.name}</li>
       ))}
     </ul>
-  )
-}
-```
-
-### Combining with Query Options
-
-Since `"db"` automatically enables `"query"`, you can use both collections and standard query options:
-
-```typescript
-import { useQuery } from "@tanstack/react-query"
-import { getUserQueryOptions } from "./generated/graphql/query/operations"
-import { userCollectionOptions } from "./generated/graphql/db/collections"
-
-function Dashboard({ queryClient }: { queryClient: QueryClient }) {
-  // Use standard query options for one-off queries
-  const { data: currentUser } = useQuery(getUserQueryOptions({ id: "current-user" }))
-
-  // Use collection for list data with local-first sync
-  const usersCollection = userCollectionOptions(queryClient)
-
-  return (
-    <div>
-      <h1>Welcome, {currentUser?.user?.name}</h1>
-      {/* Use usersCollection with TanStack DB hooks */}
-    </div>
   )
 }
 ```
