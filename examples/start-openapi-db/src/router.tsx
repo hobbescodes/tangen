@@ -23,12 +23,6 @@ export function getRouter() {
   return router;
 }
 
-declare module "@tanstack/react-router" {
-  interface Register {
-    router: ReturnType<typeof getRouter>;
-  }
-}
-
 export interface RouterContext {
   queryClient: QueryClient;
   collections: Collections;
