@@ -25,6 +25,8 @@ export default defineConfig({
         "src/core/generator.ts",
         // GraphQL functions generator - tested indirectly through adapter integration
         "src/generators/functions.ts",
+        // GraphQL IR parser - tested indirectly through adapter integration tests
+        "src/generators/ir/graphql.ts",
       ],
       thresholds: {
         lines: 80,
