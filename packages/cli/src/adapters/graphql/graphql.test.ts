@@ -13,9 +13,16 @@ import {
 } from "./schema";
 
 import type { GraphQLSourceConfig } from "@/core/config";
-import type { GraphQLAdapterSchema } from "../types";
+import type { GraphQLAdapterSchema, SchemaGenOptions } from "../types";
 
 const fixturesDir = join(__dirname, "../../test/fixtures/graphql");
+
+/**
+ * Default schema generation options for tests
+ */
+const defaultSchemaOptions: SchemaGenOptions = {
+  validator: "zod",
+};
 
 // Test schema for unit tests (doesn't require network)
 const testSchemaSDL = `
@@ -367,7 +374,11 @@ describe("generateSchemas", () => {
       },
     };
 
-    const result = graphqlAdapter.generateSchemas(schema, testConfig, {});
+    const result = graphqlAdapter.generateSchemas(
+      schema,
+      testConfig,
+      defaultSchemaOptions,
+    );
 
     expect(result.filename).toBe("schema.ts");
     expect(result.content).toContain("import * as z from");
@@ -413,7 +424,11 @@ describe("generateSchemas", () => {
       },
     };
 
-    const result = graphqlAdapter.generateSchemas(schema, testConfig, {});
+    const result = graphqlAdapter.generateSchemas(
+      schema,
+      testConfig,
+      defaultSchemaOptions,
+    );
 
     expect(result.content).toContain("userRoleSchema");
     expect(result.content).toContain('z.enum(["ADMIN", "USER"])');

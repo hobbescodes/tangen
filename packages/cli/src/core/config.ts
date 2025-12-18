@@ -283,6 +283,21 @@ export const sourceSchema = z.discriminatedUnion("type", [
 export type SourceConfig = z.infer<typeof sourceSchema>;
 
 // =============================================================================
+// Validator Library Schema
+// =============================================================================
+
+/**
+ * Supported validation libraries that implement Standard Schema
+ *
+ * - "zod" - Zod v4+ (default)
+ * - "valibot" - Valibot v1+
+ * - "arktype" - ArkType v2+
+ */
+export const validatorLibrarySchema = z.enum(["zod", "valibot", "arktype"]);
+
+export type ValidatorLibrary = z.infer<typeof validatorLibrarySchema>;
+
+// =============================================================================
 // Main Config Schema
 // =============================================================================
 
@@ -292,6 +307,13 @@ export type SourceConfig = z.infer<typeof sourceSchema>;
 export const tangramsConfigSchema = z.object({
   /** Output directory for all generated files (default: ./src/generated) */
   output: z.string().default("./src/generated"),
+  /**
+   * Validation library to use for generated schemas (default: "zod")
+   *
+   * All supported libraries implement Standard Schema, so generated schemas
+   * work with any tool that accepts Standard Schema validators (TanStack Form, etc.)
+   */
+  validator: validatorLibrarySchema.default("zod"),
   /** Array of data sources to generate from */
   sources: z
     .array(sourceSchema)

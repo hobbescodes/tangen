@@ -12,7 +12,7 @@ export const petSchema = z.object({
   category: petCategorySchema,
   status: petStatusSchema,
   tags: z.array(z.string()),
-  photoUrl: z.url().optional(),
+  photoUrl: z.url().nullish(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
@@ -21,14 +21,14 @@ export const createPetInputSchema = z.object({
   category: petCategorySchema,
   status: petStatusSchema,
   tags: z.array(z.string()),
-  photoUrl: z.url().optional()
+  photoUrl: z.url().nullish()
 })
 export const updatePetInputSchema = z.object({
-  name: z.string().optional(),
-  category: petCategorySchema.optional(),
-  status: petStatusSchema.optional(),
-  tags: z.array(z.string()).optional(),
-  photoUrl: z.url().optional()
+  name: z.string().nullish(),
+  category: petCategorySchema.nullish(),
+  status: petStatusSchema.nullish(),
+  tags: z.array(z.string()).nullish(),
+  photoUrl: z.url().nullish()
 })
 export const userRoleSchema = z.enum(["admin", "user", "guest"])
 export const userSchema = z.object({
@@ -45,19 +45,19 @@ export const createUserInputSchema = z.object({
   role: userRoleSchema
 })
 export const updateUserInputSchema = z.object({
-  email: z.email().optional(),
-  name: z.string().optional(),
-  role: userRoleSchema.optional()
+  email: z.email().nullish(),
+  name: z.string().nullish(),
+  role: userRoleSchema.nullish()
 })
 export const listPetsResponseSchema = z.object({
   data: z.array(petSchema),
   total: z.number().int()
 })
 export const listPetsParamsSchema = z.object({
-  status: petStatusSchema.optional(),
-  category: petCategorySchema.optional(),
-  limit: z.number().int().optional(),
-  offset: z.number().int().optional()
+  status: petStatusSchema.nullish(),
+  category: petCategorySchema.nullish(),
+  limit: z.number().int().nullish(),
+  offset: z.number().int().nullish()
 })
 export const createPetRequestSchema = createPetInputSchema
 export const createPetResponseSchema = petSchema
@@ -78,9 +78,9 @@ export const listUsersResponseSchema = z.object({
   total: z.number().int()
 })
 export const listUsersParamsSchema = z.object({
-  role: userRoleSchema.optional(),
-  limit: z.number().int().optional(),
-  offset: z.number().int().optional()
+  role: userRoleSchema.nullish(),
+  limit: z.number().int().nullish(),
+  offset: z.number().int().nullish()
 })
 export const createUserRequestSchema = createUserInputSchema
 export const createUserResponseSchema = userSchema
@@ -98,13 +98,13 @@ export const deleteUserParamsSchema = z.object({
 })
 
 // TypeScript Types (inferred from Zod schemas)
-export type Pet = z.infer<typeof petSchema>
 export type PetCategory = z.infer<typeof petCategorySchema>
 export type PetStatus = z.infer<typeof petStatusSchema>
+export type Pet = z.infer<typeof petSchema>
 export type CreatePetInput = z.infer<typeof createPetInputSchema>
 export type UpdatePetInput = z.infer<typeof updatePetInputSchema>
-export type User = z.infer<typeof userSchema>
 export type UserRole = z.infer<typeof userRoleSchema>
+export type User = z.infer<typeof userSchema>
 export type CreateUserInput = z.infer<typeof createUserInputSchema>
 export type UpdateUserInput = z.infer<typeof updateUserInputSchema>
 export type ListPetsResponse = z.infer<typeof listPetsResponseSchema>

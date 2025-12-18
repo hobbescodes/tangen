@@ -19,18 +19,18 @@ export const createUserInputSchema = z.object({
   role: userRoleSchema
 })
 export const updateUserInputSchema = z.object({
-  email: z.email().optional(),
-  name: z.string().optional(),
-  role: userRoleSchema.optional()
+  email: z.email().nullish(),
+  name: z.string().nullish(),
+  role: userRoleSchema.nullish()
 })
 export const listUsersResponseSchema = z.object({
   data: z.array(userSchema),
   total: z.number().int()
 })
 export const listUsersParamsSchema = z.object({
-  role: userRoleSchema.optional(),
-  limit: z.number().int().optional(),
-  offset: z.number().int().optional()
+  role: userRoleSchema.nullish(),
+  limit: z.number().int().nullish(),
+  offset: z.number().int().nullish()
 })
 export const createUserRequestSchema = createUserInputSchema
 export const createUserResponseSchema = userSchema
@@ -48,8 +48,8 @@ export const deleteUserParamsSchema = z.object({
 })
 
 // TypeScript Types (inferred from Zod schemas)
-export type User = z.infer<typeof userSchema>
 export type UserRole = z.infer<typeof userRoleSchema>
+export type User = z.infer<typeof userSchema>
 export type CreateUserInput = z.infer<typeof createUserInputSchema>
 export type UpdateUserInput = z.infer<typeof updateUserInputSchema>
 export type ListUsersResponse = z.infer<typeof listUsersResponseSchema>

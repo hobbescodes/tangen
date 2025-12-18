@@ -63,7 +63,7 @@ export function buildPath(
  * buildQuery({ page: 1, limit: 10 }) // "page=1&limit=10"
  */
 export function buildQuery(
-	params: Record<string, string | number | boolean | undefined>,
+	params: Record<string, string | number | boolean | null | undefined>,
 ): string {
 	const entries = Object.entries(params).filter(
 		([, v]) => v !== undefined && v !== null,

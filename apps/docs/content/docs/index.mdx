@@ -17,7 +17,7 @@ Tangrams generates code that integrates seamlessly with the TanStack ecosystem:
 |-------|-------------------|-----------|
 | **Query Options** | `queryOptions()` with typed variables and responses | `useQuery`, `useSuspenseQuery` |
 | **Mutation Options** | `mutationOptions()` with typed inputs | `useMutation` |
-| **Form Options** | `formOptions()` with Zod validators | `useForm` |
+| **Form Options** | `formOptions()` with schema validation | `useForm` |
 | **DB Collections** | Collection options with persistence handlers | TanStack DB |
 
 ## Quick Start
@@ -94,6 +94,11 @@ import { defineConfig } from "tangrams"
 export default defineConfig({
   // Output directory for all generated files (default: "./src/generated")
   output: "./src/generated",
+
+  // Validation library for generated schemas (default: "zod")
+  // Supported: "zod", "valibot", "arktype"
+  // All three implement Standard Schema for TanStack Form compatibility
+  validator: "zod",
 
   // Array of data sources to generate from
   sources: [
@@ -225,7 +230,60 @@ export default defineConfig({
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `output` | `string` | `"./src/generated"` | Output directory for all generated files |
+| `validator` | `"zod" \| "valibot" \| "arktype"` | `"zod"` | Validation library for generated schemas |
 | `sources` | `SourceConfig[]` | (required) | Array of data sources (minimum 1 required) |
+
+### Validator Libraries
+
+Tangrams supports three validation libraries that all implement [Standard Schema](https://github.com/standard-schema/standard-schema):
+
+| Library | Import | Description |
+|---------|--------|-------------|
+| **Zod** | `zod` | The default. Full-featured schema validation with great TypeScript inference. |
+| **Valibot** | `valibot` | Lightweight alternative with modular design and smaller bundle size. |
+| **ArkType** | `arktype` | Type-first validation with runtime safety and excellent TypeScript integration. |
+
+All three libraries work seamlessly with TanStack Form since they implement the Standard Schema protocol. Choose based on your preferences for bundle size, API style, or existing usage in your project.
+
+```typescript
+// Use Zod (default)
+export default defineConfig({
+  validator: "zod",
+  sources: [/* ... */],
+})
+
+// Use Valibot for smaller bundles
+export default defineConfig({
+  validator: "valibot",
+  sources: [/* ... */],
+})
+
+// Use ArkType for type-first validation
+export default defineConfig({
+  validator: "arktype",
+  sources: [/* ... */],
+})
+```
+
+Install your chosen validator as a peer dependency:
+
+<Tabs items={['Zod', 'Valibot', 'ArkType']}>
+  <Tab value="Zod">
+```bash
+bun add zod
+```
+  </Tab>
+  <Tab value="Valibot">
+```bash
+bun add valibot
+```
+  </Tab>
+  <Tab value="ArkType">
+```bash
+bun add arktype
+```
+  </Tab>
+</Tabs>
 
 ### GraphQL Source Options
 
@@ -275,7 +333,7 @@ The `generates` array specifies which TanStack artifacts to generate:
 | Value | Description | Dependencies |
 |-------|-------------|--------------|
 | `"query"` | TanStack Query (`queryOptions`, `mutationOptions`) | None |
-| `"form"` | TanStack Form (`formOptions` with Zod validation) | None |
+| `"form"` | TanStack Form (`formOptions` with schema validation) | None |
 | `"db"` | TanStack DB (`queryCollectionOptions`) | Auto-enables `"query"` |
 
 **Examples:**
@@ -395,7 +453,7 @@ Generated files are organized by source name:
 src/generated/
 └── <source-name>/
     ├── client.ts          # API client (GraphQL or REST)
-    ├── schema.ts          # Zod schemas + TypeScript types
+    ├── schema.ts          # Validation schemas + TypeScript types
     ├── functions.ts       # Standalone fetch functions
     ├── query/
     │   └── operations.ts  # queryOptions, mutationOptions
@@ -442,5 +500,5 @@ When using `--watch`, Tangrams watches your config file, GraphQL documents, and 
 Choose your TanStack library to get started:
 
 - [TanStack Query](/docs/tanstack-query) - Generate `queryOptions` and `mutationOptions`
-- [TanStack Form](/docs/tanstack-form) - Generate `formOptions` with Zod validation
+- [TanStack Form](/docs/tanstack-form) - Generate `formOptions` with schema validation
 - [TanStack DB](/docs/tanstack-db) - Generate collections with local-first data sync

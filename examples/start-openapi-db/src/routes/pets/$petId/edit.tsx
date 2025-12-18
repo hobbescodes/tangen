@@ -52,10 +52,10 @@ function EditPetComponent() {
     try {
       // Use collection update for local-first mutation
       collections.pets.update(pet.id, (draft) => {
-        (draft.name = name),
-          (draft.status = status),
-          (draft.category = category),
-          (draft.updatedAt = new Date().toISOString());
+        draft.name = name;
+        draft.status = status;
+        draft.category = category;
+        draft.updatedAt = new Date().toISOString();
       });
 
       navigate({ to: "/pets/$petId", params: { petId: pet.id } });

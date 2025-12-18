@@ -1,11 +1,8 @@
 /**
- * GraphQL to Zod schema generation
- * Converts GraphQL types to Zod validation schemas including:
- * - Enums
- * - Input types (for mutations)
- * - Fragment schemas
- * - Operation variable schemas
- * - Operation response schemas
+ * GraphQL to IR parser
+ *
+ * Converts GraphQL types to the intermediate representation (IR)
+ * that can be emitted to any validator library.
  */
 
 import {
@@ -20,23 +17,15 @@ import {
 } from "graphql";
 
 import {
-  addSchemaToContext,
-  buildZodOutput,
-  createZodGenContext,
+  createNamedSchema,
   getSafePropertyName,
-  toFragmentSchemaName,
   toFragmentTypeName,
-  toMutationResponseSchemaName,
   toMutationResponseTypeName,
-  toMutationVariablesSchemaName,
   toMutationVariablesTypeName,
-  toPascalCase,
-  toQueryResponseSchemaName,
   toQueryResponseTypeName,
-  toQueryVariablesSchemaName,
   toQueryVariablesTypeName,
-  toSchemaName,
-} from "./index";
+  topologicalSortSchemas,
+} from "./utils";
 
 import type {
   GraphQLEnumType,
@@ -53,86 +42,113 @@ import type {
   ParsedFragment,
   ParsedOperation,
 } from "@/core/documents";
-import type { ZodGenContext } from "./index";
+import type {
+  NamedSchemaIR,
+  ObjectPropertyIR,
+  SchemaIR,
+  SchemaIRResult,
+} from "./types";
+
+// ============================================================================
+// Default Scalar Mappings
+// ============================================================================
 
 /**
- * Default scalar mappings from GraphQL to Zod
+ * Default scalar mappings from GraphQL to IR
  */
-const defaultScalarToZod: Record<string, string> = {
-  ID: "z.string()",
-  String: "z.string()",
-  Int: "z.number().int()",
-  Float: "z.number()",
-  Boolean: "z.boolean()",
-  DateTime: "z.iso.datetime()",
-  Date: "z.iso.date()",
-  Time: "z.iso.time()",
-  JSON: "z.unknown()",
-  JSONObject: "z.record(z.string(), z.unknown())",
-  BigInt: "z.bigint()",
-  UUID: "z.uuid()",
+const defaultScalarToIR: Record<string, SchemaIR> = {
+  ID: { kind: "string" },
+  String: { kind: "string" },
+  Int: { kind: "number", integer: true },
+  Float: { kind: "number" },
+  Boolean: { kind: "boolean" },
+  DateTime: { kind: "string", format: "datetime" },
+  Date: { kind: "string", format: "date" },
+  Time: { kind: "string", format: "time" },
+  JSON: { kind: "unknown" },
+  JSONObject: {
+    kind: "record",
+    keyType: { kind: "string" },
+    valueType: { kind: "unknown" },
+  },
+  BigInt: { kind: "bigint" },
+  UUID: { kind: "string", format: "uuid" },
 };
 
-/**
- * Extended context for GraphQL Zod generation
- */
-interface GraphQLZodContext extends ZodGenContext {
-  /** GraphQL schema for type lookups */
-  schema: GraphQLSchema;
-  /** Scalar to Zod mappings */
-  scalarMappings: Record<string, string>;
-  /** Types that have been visited (to avoid infinite recursion) */
-  visited: Set<string>;
-  /** All parsed fragments for lookup during response generation */
-  fragments: ParsedFragment[];
-  /** Fragment schemas that have been generated (for spreading) */
-  generatedFragmentSchemas: Set<string>;
-}
+// ============================================================================
+// Options & Context
+// ============================================================================
 
 /**
- * Options for GraphQL Zod generation
+ * Options for GraphQL IR parsing
  */
-export interface GraphQLZodOptions {
-  /** Custom scalar to Zod mappings (e.g., { DateTime: "z.string()" }) */
+export interface GraphQLIROptions {
+  /**
+   * Custom scalar to code mappings.
+   * The values are validator-specific code strings that will be emitted verbatim.
+   * e.g., { DateTime: "z.string()" } for Zod
+   */
   scalars?: Record<string, string>;
 }
 
 /**
- * Result of GraphQL Zod generation
+ * Context for GraphQL IR generation
  */
-export interface GraphQLZodResult {
-  /** Generated code content */
-  content: string;
+interface GraphQLIRContext {
+  /** GraphQL schema for type lookups */
+  schema: GraphQLSchema;
+  /** Default scalar IR mappings */
+  scalarMappings: Record<string, SchemaIR>;
+  /** Custom scalar code mappings (validator-specific, emitted as raw) */
+  customScalars: Record<string, string>;
+  /** Track generated schema names to avoid duplicates */
+  generatedSchemas: Set<string>;
+  /** Track schemas that need to be generated (dependencies) */
+  pendingSchemas: Map<string, GraphQLInputObjectType | GraphQLEnumType>;
+  /** Types that have been visited (to avoid infinite recursion) */
+  visited: Set<string>;
+  /** Generated named schemas */
+  schemas: NamedSchemaIR[];
+  /** All parsed fragments for lookup during response generation */
+  fragments: ParsedFragment[];
+  /** Fragment schemas that have been generated (for spreading) */
+  generatedFragmentSchemas: Set<string>;
   /** Warnings during generation */
   warnings: string[];
 }
 
+function createContext(
+  schema: GraphQLSchema,
+  fragments: ParsedFragment[],
+  options: GraphQLIROptions,
+): GraphQLIRContext {
+  return {
+    schema,
+    scalarMappings: { ...defaultScalarToIR },
+    customScalars: options.scalars ?? {},
+    generatedSchemas: new Set(),
+    pendingSchemas: new Map(),
+    visited: new Set(),
+    schemas: [],
+    fragments,
+    generatedFragmentSchemas: new Set(),
+    warnings: [],
+  };
+}
+
+// ============================================================================
+// Main Entry Point
+// ============================================================================
+
 /**
- * Generate Zod schemas from GraphQL schema and documents
- * Generates schemas for:
- * - All enums referenced by operations (inputs and outputs)
- * - Input types used by mutations
- * - Fragment schemas
- * - Operation variable schemas
- * - Operation response schemas
+ * Parse GraphQL schema and documents to IR
  */
-export function generateGraphQLZodSchemas(
+export function parseGraphQLToIR(
   schema: GraphQLSchema,
   documents: ParsedDocuments,
-  options: GraphQLZodOptions = {},
-): GraphQLZodResult {
-  const ctx: GraphQLZodContext = {
-    ...createZodGenContext(),
-    schema,
-    scalarMappings: {
-      ...defaultScalarToZod,
-      ...options.scalars,
-    },
-    visited: new Set(),
-    fragments: documents.fragments,
-    generatedFragmentSchemas: new Set(),
-  };
-
+  options: GraphQLIROptions = {},
+): SchemaIRResult {
+  const ctx = createContext(schema, documents.fragments, options);
   const { operations, fragments } = documents;
 
   // 1. Collect and generate all enums referenced by operations (both inputs and outputs)
@@ -158,8 +174,11 @@ export function generateGraphQLZodSchemas(
   // 6. Generate operation response schemas
   generateOperationResponseSchemas(operations, ctx);
 
+  // Sort schemas topologically
+  const sortedSchemas = topologicalSortSchemas(ctx.schemas);
+
   return {
-    content: buildZodOutput(ctx),
+    schemas: sortedSchemas,
     warnings: ctx.warnings,
   };
 }
@@ -174,7 +193,7 @@ export function generateGraphQLZodSchemas(
 function collectAndGenerateEnums(
   operations: ParsedOperation[],
   fragments: ParsedFragment[],
-  ctx: GraphQLZodContext,
+  ctx: GraphQLIRContext,
 ): void {
   const enumTypes = new Set<GraphQLEnumType>();
 
@@ -230,7 +249,7 @@ function collectAndGenerateEnums(
  */
 function collectEnumsFromTypeNode(
   typeNode: { kind: string; type?: unknown; name?: { value: string } },
-  ctx: GraphQLZodContext,
+  ctx: GraphQLIRContext,
   enumTypes: Set<GraphQLEnumType>,
 ): void {
   if (
@@ -270,7 +289,7 @@ function collectEnumsFromTypeNode(
  */
 function collectEnumsFromGraphQLInputType(
   type: GraphQLInputType,
-  ctx: GraphQLZodContext,
+  ctx: GraphQLIRContext,
   enumTypes: Set<GraphQLEnumType>,
 ): void {
   if (isNonNullType(type) || isListType(type)) {
@@ -294,7 +313,7 @@ function collectEnumsFromGraphQLInputType(
 function collectEnumsFromSelectionSet(
   selectionSet: { selections: readonly unknown[] },
   parentType: GraphQLObjectType | GraphQLInterfaceType,
-  ctx: GraphQLZodContext,
+  ctx: GraphQLIRContext,
   enumTypes: Set<GraphQLEnumType>,
 ): void {
   const parentFields = parentType.getFields();
@@ -369,7 +388,7 @@ function collectEnumsFromSelectionSet(
 function collectEnumsFromOutputType(
   type: GraphQLOutputType,
   selectionSet: { selections: readonly unknown[] } | undefined,
-  ctx: GraphQLZodContext,
+  ctx: GraphQLIRContext,
   enumTypes: Set<GraphQLEnumType>,
 ): void {
   if (isNonNullType(type) || isListType(type)) {
@@ -428,7 +447,7 @@ function collectEnumsFromOutputType(
 function collectInputTypesFromOperations(
   operations: ParsedOperation[],
   schema: GraphQLSchema,
-  ctx: GraphQLZodContext,
+  ctx: GraphQLIRContext,
 ): GraphQLInputObjectType[] {
   const inputTypes: GraphQLInputObjectType[] = [];
   const collected = new Set<string>();
@@ -458,7 +477,7 @@ function collectInputTypesFromTypeNode(
   schema: GraphQLSchema,
   inputTypes: GraphQLInputObjectType[],
   collected: Set<string>,
-  ctx: GraphQLZodContext,
+  ctx: GraphQLIRContext,
 ): void {
   if (
     (typeNode.kind === "NonNullType" || typeNode.kind === "ListType") &&
@@ -503,7 +522,7 @@ function collectNestedInputTypes(
   schema: GraphQLSchema,
   inputTypes: GraphQLInputObjectType[],
   collected: Set<string>,
-  ctx: GraphQLZodContext,
+  ctx: GraphQLIRContext,
 ): void {
   const fields = inputType.getFields();
 
@@ -526,7 +545,7 @@ function collectInputTypesFromGraphQLType(
   schema: GraphQLSchema,
   inputTypes: GraphQLInputObjectType[],
   collected: Set<string>,
-  ctx: GraphQLZodContext,
+  ctx: GraphQLIRContext,
 ): void {
   if (isNonNullType(type) || isListType(type)) {
     collectInputTypesFromGraphQLType(
@@ -551,32 +570,31 @@ function collectInputTypesFromGraphQLType(
 // ============================================================================
 
 /**
- * Generate a Zod schema for a GraphQL enum type
+ * Generate IR for a GraphQL enum type
  */
 function generateEnumSchema(
   enumType: GraphQLEnumType,
-  ctx: GraphQLZodContext,
+  ctx: GraphQLIRContext,
 ): void {
   const typeName = enumType.name;
 
   if (ctx.generatedSchemas.has(typeName)) return;
 
-  const values = enumType.getValues();
-  const enumValues = values.map((v) => `"${v.name}"`).join(", ");
-  const zodSchema = `z.enum([${enumValues}])`;
+  ctx.generatedSchemas.add(typeName);
 
-  addSchemaToContext(ctx, typeName, zodSchema);
+  const values = enumType.getValues();
+  const enumValues = values.map((v) => v.name);
+  const ir: SchemaIR = { kind: "enum", values: enumValues };
+
+  ctx.schemas.push(createNamedSchema(typeName, ir, "enum"));
 }
 
 /**
- * Generate a Zod schema for a GraphQL input object type
- *
- * Uses .nullish() for nullable fields to provide compatibility between
- * GraphQL input semantics (optional/undefined) and output semantics (nullable/null).
+ * Generate IR for a GraphQL input object type
  */
 function generateInputTypeSchema(
   inputType: GraphQLInputObjectType,
-  ctx: GraphQLZodContext,
+  ctx: GraphQLIRContext,
 ): void {
   const typeName = inputType.name;
 
@@ -584,32 +602,30 @@ function generateInputTypeSchema(
   if (ctx.visited.has(typeName)) return;
 
   ctx.visited.add(typeName);
+  ctx.generatedSchemas.add(typeName);
 
   const fields = inputType.getFields();
-  const fieldDefs: string[] = [];
+  const properties: Record<string, ObjectPropertyIR> = {};
 
   for (const field of Object.values(fields)) {
-    const zodType = graphqlInputTypeToZod(field.type, ctx);
+    const ir = graphqlInputTypeToIR(field.type, ctx);
     const isRequired = isNonNullType(field.type);
     const safeName = getSafePropertyName(field.name);
 
-    if (isRequired) {
-      fieldDefs.push(`  ${safeName}: ${zodType}`);
-    } else {
-      // Use .nullish() for nullable fields to accept both null and undefined
-      // This provides compatibility with output types that use null
-      fieldDefs.push(`  ${safeName}: ${zodType}.nullish()`);
-    }
+    properties[safeName === field.name ? field.name : safeName] = {
+      schema: ir,
+      required: isRequired,
+    };
   }
 
-  const zodSchema = `z.object({\n${fieldDefs.join(",\n")}\n})`;
-  addSchemaToContext(ctx, typeName, zodSchema);
+  const objectIR: SchemaIR = { kind: "object", properties };
+  ctx.schemas.push(createNamedSchema(typeName, objectIR, "input"));
 }
 
 /**
  * Process any pending schemas that were discovered as dependencies
  */
-function processPendingSchemas(ctx: GraphQLZodContext): void {
+function processPendingSchemas(ctx: GraphQLIRContext): void {
   while (ctx.pendingSchemas.size > 0) {
     const entries = [...ctx.pendingSchemas.entries()];
     ctx.pendingSchemas.clear();
@@ -617,9 +633,9 @@ function processPendingSchemas(ctx: GraphQLZodContext): void {
     for (const [name, type] of entries) {
       if (!ctx.generatedSchemas.has(name)) {
         if (isInputObjectType(type)) {
-          generateInputTypeSchema(type as GraphQLInputObjectType, ctx);
+          generateInputTypeSchema(type, ctx);
         } else if (isEnumType(type)) {
-          generateEnumSchema(type as GraphQLEnumType, ctx);
+          generateEnumSchema(type, ctx);
         }
       }
     }
@@ -627,41 +643,26 @@ function processPendingSchemas(ctx: GraphQLZodContext): void {
 }
 
 /**
- * Convert a GraphQL input type to a Zod type string
- *
- * @param type - The GraphQL input type to convert
- * @param ctx - The generation context
- * @param isTopLevel - Whether this is a top-level field (nullability handled by caller)
- *
- * For top-level fields, nullability (.nullish()) is handled by generateInputTypeSchema.
- * For nested types (e.g., array items), we add .nullish() here when the type is not NonNull.
+ * Convert a GraphQL input type to IR
  */
-function graphqlInputTypeToZod(
+function graphqlInputTypeToIR(
   type: GraphQLInputType,
-  ctx: GraphQLZodContext,
+  ctx: GraphQLIRContext,
   isTopLevel = true,
-): string {
+): SchemaIR {
   // Check if this type is non-null
   const isRequired = isNonNullType(type);
   const innerType = isRequired ? type.ofType : type;
 
-  // Generate the base Zod type
-  let zodType: string;
+  // Generate the base IR
+  let ir: SchemaIR;
 
   if (isListType(innerType)) {
     // For arrays, recursively process the item type (not top-level)
-    const itemZodType = graphqlInputTypeToZod(innerType.ofType, ctx, false);
-    zodType = `z.array(${itemZodType})`;
+    const itemIR = graphqlInputTypeToIR(innerType.ofType, ctx, false);
+    ir = { kind: "array", items: itemIR };
   } else if (isScalarType(innerType)) {
-    const mapped = ctx.scalarMappings[innerType.name];
-    if (mapped) {
-      zodType = mapped;
-    } else {
-      ctx.warnings.push(
-        `Unknown scalar type "${innerType.name}", using z.unknown(). Consider adding a scalar mapping.`,
-      );
-      zodType = "z.unknown()";
-    }
+    ir = getScalarIR(innerType.name, ctx);
   } else if (isEnumType(innerType)) {
     if (
       !ctx.generatedSchemas.has(innerType.name) &&
@@ -669,7 +670,7 @@ function graphqlInputTypeToZod(
     ) {
       ctx.pendingSchemas.set(innerType.name, innerType);
     }
-    zodType = toSchemaName(innerType.name);
+    ir = { kind: "ref", name: innerType.name };
   } else if (isInputObjectType(innerType)) {
     if (
       !ctx.generatedSchemas.has(innerType.name) &&
@@ -677,19 +678,43 @@ function graphqlInputTypeToZod(
     ) {
       ctx.pendingSchemas.set(innerType.name, innerType);
     }
-    zodType = toSchemaName(innerType.name);
+    ir = { kind: "ref", name: innerType.name };
   } else {
     ctx.warnings.push("Unsupported GraphQL input type");
-    zodType = "z.unknown()";
+    ir = { kind: "unknown" };
   }
 
-  // For non-top-level types (e.g., array items), add .nullish() if not required
-  // This provides compatibility between input (undefined) and output (null) semantics
+  // For non-top-level types (e.g., array items), add nullish if not required
   if (!isTopLevel && !isRequired) {
-    zodType = `${zodType}.nullish()`;
+    ir = {
+      kind: "union",
+      members: [ir, { kind: "null" }, { kind: "undefined" }],
+    };
   }
 
-  return zodType;
+  return ir;
+}
+
+/**
+ * Get IR for a scalar type
+ */
+function getScalarIR(scalarName: string, ctx: GraphQLIRContext): SchemaIR {
+  // Check for custom scalar mapping first (validator-specific)
+  if (ctx.customScalars[scalarName]) {
+    return { kind: "raw", code: ctx.customScalars[scalarName] };
+  }
+
+  // Check default mappings
+  const mapped = ctx.scalarMappings[scalarName];
+  if (mapped) {
+    return mapped;
+  }
+
+  // Unknown scalar - warn and use unknown
+  ctx.warnings.push(
+    `Unknown scalar type "${scalarName}", using unknown. Consider adding a scalar mapping.`,
+  );
+  return { kind: "unknown" };
 }
 
 // ============================================================================
@@ -697,14 +722,13 @@ function graphqlInputTypeToZod(
 // ============================================================================
 
 /**
- * Generate a Zod schema for a GraphQL fragment
+ * Generate IR for a GraphQL fragment
  */
 function generateFragmentSchema(
   fragment: ParsedFragment,
-  ctx: GraphQLZodContext,
+  ctx: GraphQLIRContext,
 ): void {
   const typeName = toFragmentTypeName(fragment.name);
-  const schemaName = toFragmentSchemaName(fragment.name);
 
   if (ctx.generatedSchemas.has(typeName)) return;
 
@@ -719,25 +743,16 @@ function generateFragmentSchema(
     return;
   }
 
-  const zodSchema = generateSelectionSetZodSchema(
+  const ir = generateSelectionSetIR(
     fragment.node.selectionSet,
     parentType,
     ctx,
   );
 
-  // Mark this fragment as generated so we can spread it
+  // Mark this fragment as generated so we can reference it
   ctx.generatedFragmentSchemas.add(fragment.name);
-
-  // Add to context with the Fragment type name (e.g., PetFieldsFragment)
   ctx.generatedSchemas.add(typeName);
-  ctx.schemaEntries.set(typeName, {
-    name: typeName,
-    zodType: zodSchema,
-    dependencies: extractDependenciesFromZodSchema(zodSchema),
-  });
-  ctx.typeExports.push(
-    `export type ${typeName} = z.infer<typeof ${schemaName}>`,
-  );
+  ctx.schemas.push(createNamedSchema(typeName, ir, "fragment"));
 }
 
 // ============================================================================
@@ -745,14 +760,11 @@ function generateFragmentSchema(
 // ============================================================================
 
 /**
- * Generate Zod schemas for operation variables
- *
- * Uses .nullish() for nullable variables to provide compatibility between
- * GraphQL input semantics (optional/undefined) and output semantics (nullable/null).
+ * Generate IR for operation variables
  */
 function generateOperationVariablesSchemas(
   operations: ParsedOperation[],
-  ctx: GraphQLZodContext,
+  ctx: GraphQLIRContext,
 ): void {
   for (const operation of operations) {
     const variables = operation.node.variableDefinitions ?? [];
@@ -763,51 +775,36 @@ function generateOperationVariablesSchemas(
         ? toQueryVariablesTypeName(operation.name)
         : toMutationVariablesTypeName(operation.name);
 
-    const schemaName =
-      operation.operation === "query"
-        ? toQueryVariablesSchemaName(operation.name)
-        : toMutationVariablesSchemaName(operation.name);
-
     if (ctx.generatedSchemas.has(typeName)) continue;
 
-    const fieldDefs: string[] = [];
+    const properties: Record<string, ObjectPropertyIR> = {};
 
     for (const varDef of variables) {
       const varName = varDef.variable.name.value;
-      const zodType = astTypeToZod(varDef.type, ctx);
+      const ir = astTypeToIR(varDef.type, ctx);
       const isRequired = varDef.type.kind === "NonNullType";
 
-      if (isRequired) {
-        fieldDefs.push(`  ${varName}: ${zodType}`);
-      } else {
-        // Use .nullish() for nullable variables to accept both null and undefined
-        fieldDefs.push(`  ${varName}: ${zodType}.nullish()`);
-      }
+      properties[varName] = {
+        schema: ir,
+        required: isRequired,
+      };
     }
 
-    const zodSchema = `z.object({\n${fieldDefs.join(",\n")}\n})`;
-
+    const objectIR: SchemaIR = { kind: "object", properties };
     ctx.generatedSchemas.add(typeName);
-    ctx.schemaEntries.set(typeName, {
-      name: typeName,
-      zodType: zodSchema,
-      dependencies: extractDependenciesFromZodSchema(zodSchema),
-    });
-    ctx.typeExports.push(
-      `export type ${typeName} = z.infer<typeof ${schemaName}>`,
-    );
+    ctx.schemas.push(createNamedSchema(typeName, objectIR, "variables"));
   }
 }
 
 /**
- * Convert a GraphQL AST type node to a Zod type string
+ * Convert a GraphQL AST type node to IR
  */
-function astTypeToZod(
+function astTypeToIR(
   typeNode: { kind: string; type?: unknown; name?: { value: string } },
-  ctx: GraphQLZodContext,
-): string {
+  ctx: GraphQLIRContext,
+): SchemaIR {
   if (typeNode.kind === "NonNullType" && typeNode.type) {
-    return astTypeToZod(
+    return astTypeToIR(
       typeNode.type as {
         kind: string;
         type?: unknown;
@@ -818,7 +815,7 @@ function astTypeToZod(
   }
 
   if (typeNode.kind === "ListType" && typeNode.type) {
-    const innerType = astTypeToZod(
+    const innerIR = astTypeToIR(
       typeNode.type as {
         kind: string;
         type?: unknown;
@@ -826,7 +823,10 @@ function astTypeToZod(
       },
       ctx,
     );
-    return `z.array(${innerType}).nullable()`;
+    return {
+      kind: "union",
+      members: [{ kind: "array", items: innerIR }, { kind: "null" }],
+    };
   }
 
   if (typeNode.kind === "NamedType" && typeNode.name?.value) {
@@ -835,23 +835,18 @@ function astTypeToZod(
 
     if (!schemaType) {
       ctx.warnings.push(`Unknown type "${typeName}" in operation variables`);
-      return "z.unknown()";
+      return { kind: "unknown" };
     }
 
     if (isScalarType(schemaType)) {
-      const zodType = ctx.scalarMappings[typeName];
-      if (zodType) return zodType;
-      ctx.warnings.push(
-        `Unknown scalar type "${typeName}", using z.unknown(). Consider adding a scalar mapping.`,
-      );
-      return "z.unknown()";
+      return getScalarIR(typeName, ctx);
     }
 
     // Enums and input types - reference the schema
-    return toSchemaName(typeName);
+    return { kind: "ref", name: typeName };
   }
 
-  return "z.unknown()";
+  return { kind: "unknown" };
 }
 
 // ============================================================================
@@ -859,22 +854,17 @@ function astTypeToZod(
 // ============================================================================
 
 /**
- * Generate Zod schemas for operation responses
+ * Generate IR for operation responses
  */
 function generateOperationResponseSchemas(
   operations: ParsedOperation[],
-  ctx: GraphQLZodContext,
+  ctx: GraphQLIRContext,
 ): void {
   for (const operation of operations) {
     const typeName =
       operation.operation === "query"
         ? toQueryResponseTypeName(operation.name)
         : toMutationResponseTypeName(operation.name);
-
-    const schemaName =
-      operation.operation === "query"
-        ? toQueryResponseSchemaName(operation.name)
-        : toMutationResponseSchemaName(operation.name);
 
     if (ctx.generatedSchemas.has(typeName)) continue;
 
@@ -890,73 +880,71 @@ function generateOperationResponseSchemas(
       continue;
     }
 
-    const zodSchema = generateSelectionSetZodSchema(
+    const ir = generateSelectionSetIR(
       operation.node.selectionSet,
       rootType,
       ctx,
     );
 
     ctx.generatedSchemas.add(typeName);
-    ctx.schemaEntries.set(typeName, {
-      name: typeName,
-      zodType: zodSchema,
-      dependencies: extractDependenciesFromZodSchema(zodSchema),
-    });
-    ctx.typeExports.push(
-      `export type ${typeName} = z.infer<typeof ${schemaName}>`,
-    );
+    ctx.schemas.push(createNamedSchema(typeName, ir, "response"));
   }
 }
 
 // ============================================================================
-// Selection Set to Zod Schema Conversion
+// Selection Set to IR Conversion
 // ============================================================================
 
 interface SelectionFieldResult {
-  fields: string[];
+  properties: Record<string, ObjectPropertyIR>;
   spreadFragments: string[];
 }
 
 /**
- * Generate a Zod schema from a GraphQL selection set
+ * Generate IR from a GraphQL selection set
  */
-function generateSelectionSetZodSchema(
+function generateSelectionSetIR(
   selectionSet: { selections: readonly unknown[] },
   parentType: GraphQLObjectType | GraphQLInterfaceType,
-  ctx: GraphQLZodContext,
-): string {
+  ctx: GraphQLIRContext,
+): SchemaIR {
   const result = extractSelectionFields(selectionSet, parentType, ctx);
 
-  // If there are fragment spreads, use Zod v4 spread pattern
-  if (result.spreadFragments.length > 0) {
-    const spreadParts = result.spreadFragments.map(
-      (f) => `...${toFragmentSchemaName(f)}.shape`,
-    );
+  // Build object properties
+  const allProperties = { ...result.properties };
 
-    if (result.fields.length > 0) {
-      // Combine fragment spreads with inline fields
-      return `z.object({\n  ${spreadParts.join(",\n  ")},\n${result.fields.join(",\n")}\n})`;
-    }
-    // Only fragment spreads
-    return `z.object({\n  ${spreadParts.join(",\n  ")}\n})`;
+  // For fragment spreads, we need to merge their properties
+  // In the emitters, we'll handle this with spread syntax
+  // For now, we just create a reference that emitters can handle
+
+  // If there are fragment spreads, the emitter needs to know about them
+  // We'll store this information in the schema for the emitter to use
+  if (result.spreadFragments.length > 0) {
+    // Create an object schema that includes fragment references
+    // The emitter will handle the spreading syntax
+    const objectIR: SchemaIR & { _fragmentSpreads?: string[] } = {
+      kind: "object",
+      properties: allProperties,
+    };
+    // Store fragment spreads as metadata for emitters
+    (objectIR as { _fragmentSpreads?: string[] })._fragmentSpreads =
+      result.spreadFragments;
+
+    return objectIR;
   }
 
-  // No fragment spreads, just inline fields
-  return `z.object({\n${result.fields.join(",\n")}\n})`;
+  return { kind: "object", properties: allProperties };
 }
 
 /**
  * Extract field definitions from a selection set
- *
- * Uses .nullish() for nullable fields to provide compatibility between
- * GraphQL output semantics (nullable/null) and input semantics (optional/undefined).
  */
 function extractSelectionFields(
   selectionSet: { selections: readonly unknown[] },
   parentType: GraphQLObjectType | GraphQLInterfaceType,
-  ctx: GraphQLZodContext,
+  ctx: GraphQLIRContext,
 ): SelectionFieldResult {
-  const fields: string[] = [];
+  const properties: Record<string, ObjectPropertyIR> = {};
   const spreadFragments: string[] = [];
   const parentFields = parentType.getFields();
 
@@ -976,7 +964,10 @@ function extractSelectionFields(
 
       // Handle __typename
       if (fieldName === "__typename") {
-        fields.push(`  ${outputName}: z.literal("${parentType.name}")`);
+        properties[outputName] = {
+          schema: { kind: "literal", value: parentType.name },
+          required: true,
+        };
         continue;
       }
 
@@ -984,20 +975,13 @@ function extractSelectionFields(
       if (!schemaField) continue;
 
       const fieldType = schemaField.type;
-      const zodType = generateOutputTypeZodSchema(
-        fieldType,
-        sel.selectionSet,
-        ctx,
-      );
+      const ir = generateOutputTypeIR(fieldType, sel.selectionSet, ctx);
       const isRequired = isNonNullType(fieldType);
 
-      if (isRequired) {
-        fields.push(`  ${outputName}: ${zodType}`);
-      } else {
-        // Use .nullish() for nullable fields to accept both null and undefined
-        // This provides compatibility with input types that use undefined
-        fields.push(`  ${outputName}: ${zodType}.nullish()`);
-      }
+      properties[outputName] = {
+        schema: ir,
+        required: isRequired,
+      };
     }
 
     if (sel.kind === "FragmentSpread") {
@@ -1018,7 +1002,7 @@ function extractSelectionFields(
               fragmentType,
               ctx,
             );
-            fields.push(...fragmentResult.fields);
+            Object.assign(properties, fragmentResult.properties);
             spreadFragments.push(...fragmentResult.spreadFragments);
           }
         }
@@ -1026,9 +1010,6 @@ function extractSelectionFields(
     }
 
     if (sel.kind === "InlineFragment" && sel.selectionSet) {
-      // For inline fragments without type condition, merge fields
-      // For inline fragments with type condition, we'd need discriminated unions
-      // For now, handle the simple case
       const typeName = sel.typeCondition?.name.value ?? parentType.name;
       const fragmentType = ctx.schema.getType(typeName);
 
@@ -1041,82 +1022,71 @@ function extractSelectionFields(
           fragmentType,
           ctx,
         );
-        fields.push(...inlineResult.fields);
+        Object.assign(properties, inlineResult.properties);
         spreadFragments.push(...inlineResult.spreadFragments);
       }
     }
   }
 
-  return { fields, spreadFragments };
+  return { properties, spreadFragments };
 }
 
 /**
- * Generate a Zod schema for a GraphQL output type
+ * Generate IR for a GraphQL output type
  */
-function generateOutputTypeZodSchema(
+function generateOutputTypeIR(
   type: GraphQLOutputType,
   selectionSet: { selections: readonly unknown[] } | undefined,
-  ctx: GraphQLZodContext,
-): string {
+  ctx: GraphQLIRContext,
+): SchemaIR {
   // Unwrap NonNull
   if (isNonNullType(type)) {
-    return generateOutputTypeZodSchema(type.ofType, selectionSet, ctx);
+    return generateOutputTypeIR(type.ofType, selectionSet, ctx);
   }
 
   // Handle lists
   if (isListType(type)) {
-    const innerType = generateOutputTypeZodSchema(
-      type.ofType,
-      selectionSet,
-      ctx,
-    );
-    return `z.array(${innerType})`;
+    const innerIR = generateOutputTypeIR(type.ofType, selectionSet, ctx);
+    return { kind: "array", items: innerIR };
   }
 
   // Handle scalars
   if (isScalarType(type)) {
-    const zodType = ctx.scalarMappings[type.name];
-    if (zodType) {
-      return zodType;
-    }
-    ctx.warnings.push(
-      `Unknown scalar type "${type.name}", using z.unknown(). Consider adding a scalar mapping.`,
-    );
-    return "z.unknown()";
+    return getScalarIR(type.name, ctx);
   }
 
   // Handle enums
   if (isEnumType(type)) {
-    return toSchemaName(type.name);
+    return { kind: "ref", name: type.name };
   }
 
   // Handle union types
   if (isUnionType(type) && selectionSet) {
-    return generateUnionTypeZodSchema(type, selectionSet, ctx);
+    return generateUnionTypeIR(type, selectionSet, ctx);
   }
 
   // Handle interface types
   if (isInterfaceType(type) && selectionSet) {
-    return generateInterfaceTypeZodSchema(type, selectionSet, ctx);
+    return generateInterfaceTypeIR(type, selectionSet, ctx);
   }
 
   // Handle object types with nested selections
   if (isObjectType(type) && selectionSet) {
-    return generateSelectionSetZodSchema(selectionSet, type, ctx);
+    return generateSelectionSetIR(selectionSet, type, ctx);
   }
 
-  return "z.unknown()";
+  return { kind: "unknown" };
 }
 
 /**
- * Generate a Zod schema for a GraphQL union type
+ * Generate IR for a GraphQL union type
  */
-function generateUnionTypeZodSchema(
+function generateUnionTypeIR(
   type: GraphQLUnionType,
   selectionSet: { selections: readonly unknown[] },
-  ctx: GraphQLZodContext,
-): string {
-  const inlineFragments: string[] = [];
+  ctx: GraphQLIRContext,
+): SchemaIR {
+  const members: SchemaIR[] = [];
 
   for (const selection of selectionSet.selections) {
     const sel = selection as {
@@ -1134,41 +1104,40 @@ function generateUnionTypeZodSchema(
       const fragmentType = ctx.schema.getType(typeName);
 
       if (fragmentType && isObjectType(fragmentType)) {
-        const memberSchema = generateSelectionSetZodSchema(
+        const memberIR = generateSelectionSetIR(
           sel.selectionSet,
           fragmentType,
           ctx,
         );
-        inlineFragments.push(memberSchema);
+        members.push(memberIR);
       }
     }
   }
 
-  if (inlineFragments.length === 0) {
+  if (members.length === 0) {
     ctx.warnings.push(
       `Union type "${type.name}" has no inline fragments. Consider adding "... on TypeName { fields }" to select specific fields.`,
     );
-    return "z.unknown()";
+    return { kind: "unknown" };
   }
 
-  if (inlineFragments.length === 1) {
-    return inlineFragments[0]!;
+  if (members.length === 1 && members[0]) {
+    return members[0];
   }
 
-  return `z.union([${inlineFragments.join(", ")}])`;
+  return { kind: "union", members };
 }
 
 /**
- * Generate a Zod schema for a GraphQL interface type
+ * Generate IR for a GraphQL interface type
  */
-function generateInterfaceTypeZodSchema(
+function generateInterfaceTypeIR(
   type: GraphQLInterfaceType,
   selectionSet: { selections: readonly unknown[] },
-  ctx: GraphQLZodContext,
-): string {
-  // Extract common fields and inline fragments
+  ctx: GraphQLIRContext,
+): SchemaIR {
   const result = extractSelectionFields(selectionSet, type, ctx);
-  const inlineFragments: string[] = [];
+  const inlineFragments: SchemaIR[] = [];
 
   for (const selection of selectionSet.selections) {
     const sel = selection as {
@@ -1189,12 +1158,12 @@ function generateInterfaceTypeZodSchema(
         fragmentType &&
         (isObjectType(fragmentType) || isInterfaceType(fragmentType))
       ) {
-        const memberSchema = generateSelectionSetZodSchema(
+        const memberIR = generateSelectionSetIR(
           sel.selectionSet,
           fragmentType,
           ctx,
         );
-        inlineFragments.push(memberSchema);
+        inlineFragments.push(memberIR);
       }
     }
   }
@@ -1202,45 +1171,21 @@ function generateInterfaceTypeZodSchema(
   // If no inline fragments, return the common fields
   if (inlineFragments.length === 0) {
     if (result.spreadFragments.length > 0) {
-      const spreadParts = result.spreadFragments.map(
-        (f) => `...${toFragmentSchemaName(f)}.shape`,
-      );
-      if (result.fields.length > 0) {
-        return `z.object({\n  ${spreadParts.join(",\n  ")},\n${result.fields.join(",\n")}\n})`;
-      }
-      return `z.object({\n  ${spreadParts.join(",\n  ")}\n})`;
+      const objectIR: SchemaIR & { _fragmentSpreads?: string[] } = {
+        kind: "object",
+        properties: result.properties,
+      };
+      (objectIR as { _fragmentSpreads?: string[] })._fragmentSpreads =
+        result.spreadFragments;
+      return objectIR;
     }
-    return `z.object({\n${result.fields.join(",\n")}\n})`;
+    return { kind: "object", properties: result.properties };
   }
 
   // With inline fragments, create a union
-  if (inlineFragments.length === 1) {
-    return inlineFragments[0]!;
+  if (inlineFragments.length === 1 && inlineFragments[0]) {
+    return inlineFragments[0];
   }
 
-  return `z.union([${inlineFragments.join(", ")}])`;
-}
-
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
-/**
- * Extract schema dependencies from a Zod type string
- */
-function extractDependenciesFromZodSchema(zodType: string): Set<string> {
-  const deps = new Set<string>();
-  // Match schema references like "petCategorySchema", "userSchema", etc.
-  const schemaRefPattern = /([a-z][a-zA-Z0-9]*(?:Fragment)?Schema)/g;
-  let match = schemaRefPattern.exec(zodType);
-  while (match !== null) {
-    const schemaVarName = match[0];
-    // Convert schema variable name to type name
-    // e.g., "petCategorySchema" -> "PetCategory", "petFieldsFragmentSchema" -> "PetFieldsFragment"
-    const baseName = schemaVarName.replace(/Schema$/, "");
-    const typeName = toPascalCase(baseName);
-    deps.add(typeName);
-    match = schemaRefPattern.exec(zodType);
-  }
-  return deps;
+  return { kind: "union", members: inlineFragments };
 }
