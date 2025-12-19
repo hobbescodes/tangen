@@ -9,7 +9,7 @@ import { getEmitter } from "@/generators/emitters";
 import {
   generateFormOptionsCode,
   getOpenAPIRequestSchemaName,
-} from "@/generators/forms";
+} from "@/generators/form-options";
 import { parseOpenAPIToIR } from "@/generators/ir";
 import { generateOpenAPIClient } from "./client";
 import {
@@ -146,7 +146,7 @@ class OpenAPIAdapterImpl implements IOpenAPIAdapter {
     });
 
     return {
-      filename: "forms.ts",
+      filename: "options.ts",
       content: result.content,
       warnings: result.warnings,
     };

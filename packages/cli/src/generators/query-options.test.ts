@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { loadDocuments } from "../core/documents";
-import { generateGraphQLOperations } from "./operations";
+import { generateGraphQLOperations } from "./query-options";
 
 const fixturesDir = resolve(__dirname, "../test/fixtures/graphql");
 

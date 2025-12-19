@@ -143,7 +143,7 @@ describe("OpenAPI Adapter", () => {
         sourceName: "petstore",
       });
 
-      expect(result.filename).toBe("operations.ts");
+      expect(result.filename).toBe("options.ts");
       expect(result.content).toContain("@tanstack/react-query");
       expect(result.content).toContain("queryOptions");
 
@@ -1587,7 +1587,7 @@ describe("generateFormOptions", () => {
       sourceName: "petstore",
     });
 
-    expect(result.filename).toBe("forms.ts");
+    expect(result.filename).toBe("options.ts");
     expect(result.content).toContain(
       'import { formOptions } from "@tanstack/react-form"',
     );

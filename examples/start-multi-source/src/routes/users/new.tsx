@@ -1,8 +1,8 @@
-import { createUserFormOptions } from "@tangrams/users/form/forms";
+import { createUserFormOptions } from "@tangrams/users/form/options";
 import {
   createUserMutationOptions,
   listUsersQueryOptions,
-} from "@tangrams/users/query/operations";
+} from "@tangrams/users/query/options";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";

@@ -125,11 +125,11 @@ function HomeComponent() {
         </h2>
         <div className="grid gap-2 text-sm text-gray-600 sm:grid-cols-3">
           <div>
-            <code className="text-gray-800">query/operations.ts</code>
+            <code className="text-gray-800">query/options.ts</code>
             <p className="text-xs">TanStack Query options</p>
           </div>
           <div>
-            <code className="text-gray-800">form/forms.ts</code>
+            <code className="text-gray-800">form/options.ts</code>
             <p className="text-xs">TanStack Form options</p>
           </div>
           <div>

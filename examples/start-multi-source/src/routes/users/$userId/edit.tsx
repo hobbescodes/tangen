@@ -1,9 +1,9 @@
-import { updateUserFormOptions } from "@tangrams/users/form/forms";
+import { updateUserFormOptions } from "@tangrams/users/form/options";
 import { updateUser } from "@tangrams/users/functions";
 import {
   getUserQueryOptions,
   listUsersQueryOptions,
-} from "@tangrams/users/query/operations";
+} from "@tangrams/users/query/options";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";

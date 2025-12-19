@@ -27,10 +27,10 @@ const FILES = {
   functions: "functions.ts",
   query: {
     types: "types.ts",
-    operations: "operations.ts",
+    options: "options.ts",
   },
   form: {
-    forms: "forms.ts",
+    options: "options.ts",
   },
   db: {
     collections: "collections.ts",
@@ -77,9 +77,9 @@ async function fileExists(path: string): Promise<boolean> {
  *     ├── schema.ts          # zod schemas + inferred types (when query/form/db enabled)
  *     ├── functions.ts       # standalone fetch functions (when query/db enabled)
  *     ├── query/
- *     │   └── operations.ts  # TanStack Query options
+ *     │   └── options.ts     # TanStack Query options
  *     ├── form/
- *     │   └── forms.ts
+ *     │   └── options.ts     # TanStack Form options
  *     └── db/
  *         └── collections.ts # TanStack DB collections
  */
@@ -364,7 +364,7 @@ interface GenerateQueryFilesOptions {
 
 /**
  * Generate query files for a source
- * Outputs to: <source-name>/query/operations.ts
+ * Outputs to: <source-name>/query/options.ts
  * Types now come from schema.ts at source root for all source types
  */
 async function generateQueryFiles(
@@ -388,18 +388,18 @@ async function generateQueryFiles(
   }
 
   // Generate operations
-  const operationsPath = join(queryOutputDir, FILES.query.operations);
+  const optionsPath = join(queryOutputDir, FILES.query.options);
 
   // Calculate relative import paths (from query/ to schema.ts at source root)
-  const operationsDir = dirname(operationsPath);
-  const typesImportPath = `./${relative(operationsDir, schemaPath).replace(/\.ts$/, "")}`;
+  const optionsDir = dirname(optionsPath);
+  const typesImportPath = `./${relative(optionsDir, schemaPath).replace(/\.ts$/, "")}`;
 
-  const operationsResult = adapter.generateOperations(schema, source, {
+  const optionsResult = adapter.generateOperations(schema, source, {
     typesImportPath,
     sourceName: source.name,
   });
-  await writeFile(operationsPath, operationsResult.content, "utf-8");
-  consola.success(`Generated ${source.name}/query/${FILES.query.operations}`);
+  await writeFile(optionsPath, optionsResult.content, "utf-8");
+  consola.success(`Generated ${source.name}/query/${FILES.query.options}`);
 }
 
 // =============================================================================
@@ -415,7 +415,7 @@ interface GenerateFormFilesOptions {
 
 /**
  * Generate form files for a source
- * Outputs to: <source-name>/form/forms.ts
+ * Outputs to: <source-name>/form/options.ts
  */
 async function generateFormFiles(
   options: GenerateFormFilesOptions,
@@ -431,11 +431,11 @@ async function generateFormFiles(
   await mkdir(formOutputDir, { recursive: true });
 
   // Generate form options
-  const formsPath = join(formOutputDir, FILES.form.forms);
+  const formOptionsPath = join(formOutputDir, FILES.form.options);
 
-  // Calculate relative import path from forms to schema
-  const formsDir = dirname(formsPath);
-  const schemaImportPath = `./${relative(formsDir, schemaPath).replace(/\.ts$/, "")}`;
+  // Calculate relative import path from form options to schema
+  const formOptionsDir = dirname(formOptionsPath);
+  const schemaImportPath = `./${relative(formOptionsDir, schemaPath).replace(/\.ts$/, "")}`;
 
   const formResult = adapter.generateFormOptions(schema, source, {
     schemaImportPath,
@@ -450,8 +450,8 @@ async function generateFormFiles(
     }
   }
 
-  await writeFile(formsPath, formResult.content, "utf-8");
-  consola.success(`Generated ${source.name}/form/${FILES.form.forms}`);
+  await writeFile(formOptionsPath, formResult.content, "utf-8");
+  consola.success(`Generated ${source.name}/form/${FILES.form.options}`);
 }
 
 // =============================================================================

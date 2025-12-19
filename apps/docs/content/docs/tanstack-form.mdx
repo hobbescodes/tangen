@@ -137,7 +137,7 @@ tangrams/
 └── <source>/
     ├── schema.ts         # Validation schemas for request bodies
     └── form/
-        └── forms.ts      # formOptions exports
+        └── options.ts    # formOptions exports
 ```
 
 ### What Gets Generated
@@ -147,7 +147,7 @@ For each mutation with a request body, Tangrams generates a `formOptions` export
 - **`defaultValues`** - Empty object with type assertion for type safety
 - **`validators`** - The validation schema (configurable timing)
 
-**Example `forms.ts`:**
+**Example `options.ts`:**
 
 ```typescript
 import { formOptions } from "@tanstack/react-form"

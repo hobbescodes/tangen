@@ -1,8 +1,8 @@
-import { createPetFormOptions } from "@tangrams/pets/form/forms";
+import { createPetFormOptions } from "@tangrams/pets/form/options";
 import {
   createPetMutationOptions,
   getPetsQueryOptions,
-} from "@tangrams/pets/query/operations";
+} from "@tangrams/pets/query/options";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";

@@ -1,4 +1,4 @@
-import { getPetByIdQueryOptions } from "@tangrams/api/query/operations";
+import { getPetByIdQueryOptions } from "@tangrams/api/query/options";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 

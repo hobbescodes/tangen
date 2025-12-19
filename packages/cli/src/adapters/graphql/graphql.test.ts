@@ -245,7 +245,7 @@ describe("GraphQL Adapter", () => {
         sourceName: "test",
       });
 
-      expect(result.filename).toBe("operations.ts");
+      expect(result.filename).toBe("options.ts");
       expect(result.content).toContain("queryOptions");
       expect(result.content).toContain("getUsersQueryOptions");
     });
@@ -669,7 +669,7 @@ describe("generateFormOptions", () => {
       sourceName: "test-api",
     });
 
-    expect(result.filename).toBe("forms.ts");
+    expect(result.filename).toBe("options.ts");
     expect(result.content).toContain(
       'import { formOptions } from "@tanstack/react-form"',
     );
@@ -704,7 +704,7 @@ describe("generateFormOptions", () => {
       sourceName: "test-api",
     });
 
-    expect(result.filename).toBe("forms.ts");
+    expect(result.filename).toBe("options.ts");
     expect(result.content).toContain("No mutations");
     expect(result.warnings?.length).toBeGreaterThan(0);
   });

@@ -1,4 +1,4 @@
-import { createPetMutationOptions } from "@tangrams/api/query/operations";
+import { createPetMutationOptions } from "@tangrams/api/query/options";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";

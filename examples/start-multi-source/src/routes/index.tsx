@@ -110,12 +110,12 @@ function HomeComponent() {
             <h4 className="font-medium text-gray-800">Import Patterns</h4>
             <pre className="mt-2 overflow-x-auto rounded bg-gray-50 p-3 text-xs">
               {`// Pets (GraphQL)
-import { getPetsQueryOptions } from "@tangrams/pets/query/operations"
-import { createPetFormOptions } from "@tangrams/pets/form/forms"
+import { getPetsQueryOptions } from "@tangrams/pets/query/options"
+import { createPetFormOptions } from "@tangrams/pets/form/options"
 
 // Users (OpenAPI)
-import { listUsersQueryOptions } from "@tangrams/users/query/operations"
-import { createUserFormOptions } from "@tangrams/users/form/forms"`}
+import { listUsersQueryOptions } from "@tangrams/users/query/options"
+import { createUserFormOptions } from "@tangrams/users/form/options"`}
             </pre>
           </div>
         </div>

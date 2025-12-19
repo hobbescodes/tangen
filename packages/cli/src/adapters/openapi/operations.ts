@@ -91,7 +91,7 @@ export function generateOpenAPIOperations(
   }
 
   return {
-    filename: "operations.ts",
+    filename: "options.ts",
     content: lines.join("\n"),
   };
 }

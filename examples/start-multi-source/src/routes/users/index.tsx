@@ -1,4 +1,4 @@
-import { listUsersQueryOptions } from "@tangrams/users/query/operations";
+import { listUsersQueryOptions } from "@tangrams/users/query/options";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 

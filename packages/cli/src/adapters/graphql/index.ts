@@ -7,13 +7,13 @@
 
 import { loadDocuments } from "@/core/documents";
 import { getEmitter } from "@/generators/emitters";
-import { generateFormOptionsCode } from "@/generators/forms";
+import { generateFormOptionsCode } from "@/generators/form-options";
 import { generateFunctions } from "@/generators/functions";
 import {
   parseGraphQLToIR,
   toMutationVariablesSchemaName,
 } from "@/generators/ir";
-import { generateGraphQLOperations } from "@/generators/operations";
+import { generateGraphQLOperations } from "@/generators/query-options";
 import { generateGraphQLClient } from "./client";
 import {
   discoverGraphQLEntities,
@@ -138,7 +138,7 @@ class GraphQLAdapterImpl implements IGraphQLAdapter {
     });
 
     return {
-      filename: "operations.ts",
+      filename: "options.ts",
       content,
     };
   }
@@ -209,7 +209,7 @@ class GraphQLAdapterImpl implements IGraphQLAdapter {
     });
 
     return {
-      filename: "forms.ts",
+      filename: "options.ts",
       content: result.content,
       warnings: result.warnings,
     };

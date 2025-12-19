@@ -2,7 +2,7 @@ import {
   deleteUserMutationOptions,
   getUserQueryOptions,
   listUsersQueryOptions,
-} from "@tangrams/users/query/operations";
+} from "@tangrams/users/query/options";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 

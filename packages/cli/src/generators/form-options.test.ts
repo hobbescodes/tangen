@@ -6,7 +6,7 @@ import {
   generateFormOptionsCode,
   getGraphQLInputSchemaName,
   getOpenAPIRequestSchemaName,
-} from "./forms";
+} from "./form-options";
 
 describe("generateFormOptionsCode", () => {
   it("generates form options for mutations", () => {

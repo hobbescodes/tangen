@@ -2,7 +2,7 @@ import {
   deletePetMutationOptions,
   getPetByIdQueryOptions,
   getPetsQueryOptions,
-} from "@tangrams/pets/query/operations";
+} from "@tangrams/pets/query/options";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 
