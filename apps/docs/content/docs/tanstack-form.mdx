@@ -1,30 +1,56 @@
 ---
 title: TanStack Form
-description: Generate formOptions for TanStack Form with Zod validation.
+description: Generate formOptions for TanStack Form with schema validation.
 ---
 
 # TanStack Form
 
-Tangrams generates `formOptions` with Zod validators from your mutations. These snap right into TanStack Form's `useForm` hook.
+Tangrams generates `formOptions` with validation schemas from your mutations. These snap right into TanStack Form's `useForm` hook.
+
+By default, Tangrams uses Zod for validation, but you can also use [Valibot or ArkType](/docs#validator-libraries) by setting the `validator` option in your config.
 
 ## Peer Dependencies
 
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 
+### Core
+
 <Tabs items={['bun', 'npm', 'pnpm']}>
   <Tab value="bun">
 ```bash
-bun add @tanstack/react-form zod
+bun add @tanstack/react-form
 ```
   </Tab>
   <Tab value="npm">
 ```bash
-npm install @tanstack/react-form zod
+npm install @tanstack/react-form
 ```
   </Tab>
   <Tab value="pnpm">
 ```bash
-pnpm add @tanstack/react-form zod
+pnpm add @tanstack/react-form
+```
+  </Tab>
+</Tabs>
+
+### Validation Library
+
+Install your chosen validator (Zod is the default):
+
+<Tabs items={['Zod', 'Valibot', 'ArkType']}>
+  <Tab value="Zod">
+```bash
+bun add zod
+```
+  </Tab>
+  <Tab value="Valibot">
+```bash
+bun add valibot
+```
+  </Tab>
+  <Tab value="ArkType">
+```bash
+bun add arktype
 ```
   </Tab>
 </Tabs>
@@ -109,7 +135,7 @@ bunx tangrams generate
 ```
 src/generated/
 └── <source>/
-    ├── schema.ts         # Zod schemas for request bodies
+    ├── schema.ts         # Validation schemas for request bodies
     └── form/
         └── forms.ts      # formOptions exports
 ```
@@ -119,7 +145,7 @@ src/generated/
 For each mutation with a request body, Tangrams generates a `formOptions` export with:
 
 - **`defaultValues`** - Empty object with type assertion for type safety
-- **`validators`** - The Zod schema for validation (configurable timing)
+- **`validators`** - The validation schema (configurable timing)
 
 **Example `forms.ts`:**
 

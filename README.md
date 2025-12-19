@@ -16,7 +16,7 @@ tangrams is a comprehensive code generation tool for the TanStack ecosystem. It 
 ## Features
 
 - **TanStack Query** - Generate type-safe `queryOptions` and `mutationOptions`
-- **TanStack Form** - Generate type-safe `formOptions` with Zod validation schemas
+- **TanStack Form** - Generate type-safe `formOptions` with validation schemas
 - **TanStack DB** - Generate `queryCollectionOptions` with auto-detected CRUD operations
 - **Standalone Functions** - Generate standalone async fetch functions
 - **TanStack Pacer** - Generate rate-limited operation wrappers _(coming soon)_
@@ -45,13 +45,18 @@ Install dependencies based on what you're generating:
 
 ```bash
 # TanStack Query (generates includes "query")
-bun add @tanstack/react-query zod
+bun add @tanstack/react-query
 
 # TanStack Form (generates includes "form")
-bun add @tanstack/react-form zod
+bun add @tanstack/react-form
 
 # TanStack DB (generates includes "db")
-bun add @tanstack/react-db @tanstack/query-db-collection @tanstack/react-query zod
+bun add @tanstack/react-db @tanstack/query-db-collection @tanstack/react-query
+
+# Validation library (choose one - zod is the default)
+bun add zod        # Default validator
+# bun add valibot  # Lightweight alternative
+# bun add arktype  # Type-first validation
 
 # GraphQL sources
 bun add graphql-request
@@ -112,7 +117,7 @@ For comprehensive documentation, configuration reference, and usage examples, vi
 
 - **[Getting Started](https://tangrams.dev/docs)** - Installation, configuration reference, and all available options
 - **[TanStack Query](https://tangrams.dev/docs/tanstack-query)** - Generate `queryOptions` and `mutationOptions`
-- **[TanStack Form](https://tangrams.dev/docs/tanstack-form)** - Generate `formOptions` with Zod validation
+- **[TanStack Form](https://tangrams.dev/docs/tanstack-form)** - Generate `formOptions` with schema validation
 - **[TanStack DB](https://tangrams.dev/docs/tanstack-db)** - Generate collections with local-first data sync
 
 ## CLI Reference
