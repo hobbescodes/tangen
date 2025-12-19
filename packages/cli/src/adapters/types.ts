@@ -6,6 +6,7 @@ import type {
   PredicateMappingPreset,
   SourceConfig,
   SyncMode,
+  ValidatorLibrary,
 } from "@/core/config";
 
 /**
@@ -105,11 +106,13 @@ export interface OperationGenOptions {
 }
 
 /**
- * Options for schema (Zod) generation
+ * Options for schema generation
  */
 export interface SchemaGenOptions {
   /** Custom scalar type mappings (for GraphQL) */
   scalars?: Record<string, string>;
+  /** Validation library to use (zod, valibot, arktype) */
+  validator: ValidatorLibrary;
 }
 
 /**

@@ -1,62 +1,80 @@
 /**
- * OpenAPI to Zod schema generation
- * Converts OpenAPI schemas to Zod validation schemas
+ * OpenAPI to IR parser
+ *
+ * Converts OpenAPI schemas to the intermediate representation (IR)
+ * that can be emitted to any validator library.
  */
 
 import {
-  addSchemaToContext,
-  buildZodOutput,
-  createZodGenContext,
-  getSafePropertyName,
+  createNamedSchema,
   toPascalCase,
-  toSchemaName,
-} from "./index";
+  topologicalSortSchemas,
+} from "./utils";
 
 import type { OpenAPIV3, OpenAPIV3_1 } from "openapi-types";
 import type { ParsedOperation } from "@/adapters/openapi/schema";
-import type { ZodGenContext } from "./index";
+import type {
+  NamedSchemaIR,
+  ObjectPropertyIR,
+  SchemaIR,
+  SchemaIRResult,
+  StringFormat,
+} from "./types";
 
 type SchemaObject = OpenAPIV3.SchemaObject | OpenAPIV3_1.SchemaObject;
 type OpenAPIDocument = OpenAPIV3.Document | OpenAPIV3_1.Document;
 
-/**
- * Extended context for OpenAPI Zod generation
- */
-interface OpenAPIZodContext extends ZodGenContext {
-  /** All named schemas from components */
-  namedSchemas: Record<string, SchemaObject>;
-}
+// ============================================================================
+// Options & Context
+// ============================================================================
 
 /**
- * Options for OpenAPI Zod generation
+ * Options for OpenAPI IR parsing
  */
-export interface OpenAPIZodOptions {
+export interface OpenAPIIROptions {
   /** Only generate schemas for these operations (by operationId) */
   operationIds?: string[];
 }
 
 /**
- * Result of OpenAPI Zod generation
+ * Context for OpenAPI IR generation
  */
-export interface OpenAPIZodResult {
-  /** Generated code content */
-  content: string;
+interface OpenAPIIRContext {
+  /** All named schemas from components */
+  namedSchemas: Record<string, SchemaObject>;
+  /** Track generated schema names to avoid duplicates */
+  generatedSchemas: Set<string>;
+  /** Track schemas that need to be generated (dependencies) */
+  pendingSchemas: Map<string, SchemaObject>;
+  /** Generated named schemas */
+  schemas: NamedSchemaIR[];
   /** Warnings during generation */
   warnings: string[];
 }
 
+function createContext(): OpenAPIIRContext {
+  return {
+    namedSchemas: {},
+    generatedSchemas: new Set(),
+    pendingSchemas: new Map(),
+    schemas: [],
+    warnings: [],
+  };
+}
+
+// ============================================================================
+// Main Entry Point
+// ============================================================================
+
 /**
- * Generate Zod schemas from an OpenAPI document
+ * Parse an OpenAPI document to IR
  */
-export function generateOpenAPIZodSchemas(
+export function parseOpenAPIToIR(
   document: OpenAPIDocument,
   operations: ParsedOperation[],
-  options: OpenAPIZodOptions = {},
-): OpenAPIZodResult {
-  const ctx: OpenAPIZodContext = {
-    ...createZodGenContext(),
-    namedSchemas: {},
-  };
+  options: OpenAPIIROptions = {},
+): SchemaIRResult {
+  const ctx = createContext();
 
   // Collect all named schemas from components
   if (document.components?.schemas) {
@@ -80,10 +98,10 @@ export function generateOpenAPIZodSchemas(
   // Collect all schemas used by operations
   const usedSchemas = collectUsedSchemas(targetOperations, ctx);
 
-  // Generate Zod schemas for used component schemas (in dependency order)
+  // Generate IR for used component schemas (in dependency order)
   for (const schemaName of usedSchemas) {
     if (ctx.namedSchemas[schemaName] && !ctx.generatedSchemas.has(schemaName)) {
-      generateZodSchema(schemaName, ctx.namedSchemas[schemaName], ctx);
+      generateSchemaIR(schemaName, ctx.namedSchemas[schemaName], ctx);
     }
   }
 
@@ -93,18 +111,25 @@ export function generateOpenAPIZodSchemas(
   // Generate inline schemas for request/response types
   generateOperationSchemas(targetOperations, ctx);
 
+  // Sort schemas topologically
+  const sortedSchemas = topologicalSortSchemas(ctx.schemas);
+
   return {
-    content: buildZodOutput(ctx),
+    schemas: sortedSchemas,
     warnings: ctx.warnings,
   };
 }
+
+// ============================================================================
+// Schema Collection
+// ============================================================================
 
 /**
  * Collect all schema names used by operations
  */
 function collectUsedSchemas(
   operations: ParsedOperation[],
-  ctx: OpenAPIZodContext,
+  ctx: OpenAPIIRContext,
 ): Set<string> {
   const usedSchemas = new Set<string>();
 
@@ -181,64 +206,68 @@ function collectSchemaRefs(
   }
 }
 
+// ============================================================================
+// Schema Generation
+// ============================================================================
+
+/**
+ * Generate IR for a named schema
+ */
+function generateSchemaIR(
+  name: string,
+  schema: SchemaObject,
+  ctx: OpenAPIIRContext,
+): void {
+  if (ctx.generatedSchemas.has(name)) return;
+
+  ctx.generatedSchemas.add(name);
+  const ir = schemaToIR(schema, ctx, name);
+  ctx.schemas.push(createNamedSchema(name, ir, "component"));
+}
+
 /**
  * Process any pending schemas that were discovered as dependencies
  */
-function processPendingSchemas(ctx: OpenAPIZodContext): void {
+function processPendingSchemas(ctx: OpenAPIIRContext): void {
   while (ctx.pendingSchemas.size > 0) {
     const entries = [...ctx.pendingSchemas.entries()];
     ctx.pendingSchemas.clear();
 
     for (const [name, schema] of entries) {
       if (!ctx.generatedSchemas.has(name)) {
-        generateZodSchema(name, schema as SchemaObject, ctx);
+        generateSchemaIR(name, schema, ctx);
       }
     }
   }
 }
 
 /**
- * Generate a Zod schema for a named schema
- */
-function generateZodSchema(
-  name: string,
-  schema: SchemaObject,
-  ctx: OpenAPIZodContext,
-): void {
-  if (ctx.generatedSchemas.has(name)) return;
-
-  const zodType = schemaToZod(schema, ctx, name);
-  addSchemaToContext(ctx, name, zodType);
-}
-
-/**
  * Generate schemas for operation request/response types
- * Always creates type aliases for request/response, even when they reference existing schemas
  */
 function generateOperationSchemas(
   operations: ParsedOperation[],
-  ctx: OpenAPIZodContext,
+  ctx: OpenAPIIRContext,
 ): void {
   for (const op of operations) {
     const baseName = toPascalCase(op.operationId);
 
     // Generate request body schema if present
-    // Always create a type alias, even if it references an existing schema
     if (op.requestBody) {
       const requestName = `${baseName}Request`;
       if (!ctx.generatedSchemas.has(requestName)) {
-        const zodType = schemaToZod(op.requestBody, ctx, requestName);
-        addSchemaToContext(ctx, requestName, zodType);
+        ctx.generatedSchemas.add(requestName);
+        const ir = schemaToIR(op.requestBody, ctx, requestName);
+        ctx.schemas.push(createNamedSchema(requestName, ir, "input"));
       }
     }
 
     // Generate response schema if present
-    // Always create a type alias, even if it references an existing schema
     if (op.responseSchema) {
       const responseName = `${baseName}Response`;
       if (!ctx.generatedSchemas.has(responseName)) {
-        const zodType = schemaToZod(op.responseSchema, ctx, responseName);
-        addSchemaToContext(ctx, responseName, zodType);
+        ctx.generatedSchemas.add(responseName);
+        const ir = schemaToIR(op.responseSchema, ctx, responseName);
+        ctx.schemas.push(createNamedSchema(responseName, ir, "response"));
       }
     }
 
@@ -247,49 +276,53 @@ function generateOperationSchemas(
     if (allParams.length > 0) {
       const paramsName = `${baseName}Params`;
       if (!ctx.generatedSchemas.has(paramsName)) {
-        const paramsZod = generateParamsSchema(allParams, ctx);
-        addSchemaToContext(ctx, paramsName, paramsZod);
+        ctx.generatedSchemas.add(paramsName);
+        const ir = generateParamsSchemaIR(allParams, ctx);
+        ctx.schemas.push(createNamedSchema(paramsName, ir, "params"));
       }
     }
   }
 }
 
 /**
- * Generate a Zod schema for operation parameters
+ * Generate IR for operation parameters
  */
-function generateParamsSchema(
+function generateParamsSchemaIR(
   params: (OpenAPIV3.ParameterObject | OpenAPIV3_1.ParameterObject)[],
-  ctx: OpenAPIZodContext,
-): string {
-  const fields: string[] = [];
+  ctx: OpenAPIIRContext,
+): SchemaIR {
+  const properties: Record<string, ObjectPropertyIR> = {};
 
   for (const param of params) {
     const paramSchema = param.schema as SchemaObject | undefined;
-    const zodType = paramSchema ? schemaToZod(paramSchema, ctx) : "z.unknown()";
+    const ir = paramSchema ? schemaToIR(paramSchema, ctx) : { kind: "unknown" };
     const isRequired = param.required ?? false;
 
-    const field = isRequired
-      ? `  ${param.name}: ${zodType}`
-      : `  ${param.name}: ${zodType}.optional()`;
-
-    fields.push(field);
+    properties[param.name] = {
+      schema: ir as SchemaIR,
+      required: isRequired,
+    };
   }
 
-  return `z.object({\n${fields.join(",\n")}\n})`;
+  return { kind: "object", properties };
 }
 
+// ============================================================================
+// Schema to IR Conversion
+// ============================================================================
+
 /**
- * Convert an OpenAPI schema to a Zod type string
+ * Convert an OpenAPI schema to IR
  */
-export function schemaToZod(
+export function schemaToIR(
   schema: SchemaObject,
-  ctx: OpenAPIZodContext,
+  ctx: OpenAPIIRContext,
   currentName?: string,
-): string {
+): SchemaIR {
   // Handle nullable (OpenAPI 3.0 uses nullable, 3.1 uses type: [x, "null"])
   const nullable = "nullable" in schema && schema.nullable === true;
 
-  let zodType: string;
+  let ir: SchemaIR;
 
   // Check if this schema is a named schema (reference)
   for (const [name, namedSchema] of Object.entries(ctx.namedSchemas)) {
@@ -298,205 +331,201 @@ export function schemaToZod(
       if (!ctx.generatedSchemas.has(name) && !ctx.pendingSchemas.has(name)) {
         ctx.pendingSchemas.set(name, namedSchema);
       }
-      zodType = toSchemaName(name);
-      return nullable ? `${zodType}.nullable()` : zodType;
+      ir = { kind: "ref", name };
+      return nullable ? { kind: "union", members: [ir, { kind: "null" }] } : ir;
     }
   }
 
   // Handle enum
   if (schema.enum && schema.enum.length > 0) {
-    const enumValues = schema.enum
-      .filter((v): v is string | number | boolean => v !== null)
-      .map((v) => (typeof v === "string" ? `"${v}"` : String(v)));
-    zodType = `z.enum([${enumValues.join(", ")}])`;
-    return nullable ? `${zodType}.nullable()` : zodType;
+    const enumValues = schema.enum.filter(
+      (v): v is string | number => v !== null && v !== undefined,
+    );
+    ir = { kind: "enum", values: enumValues };
+    return nullable ? { kind: "union", members: [ir, { kind: "null" }] } : ir;
   }
 
   // Handle allOf (intersection)
   if (schema.allOf && schema.allOf.length > 0) {
-    const schemas = schema.allOf
+    const members = schema.allOf
       .filter((s): s is SchemaObject => !("$ref" in s))
-      .map((s) => schemaToZod(s, ctx));
+      .map((s) => schemaToIR(s, ctx));
 
-    if (schemas.length === 1 && schemas[0]) {
-      zodType = schemas[0];
-    } else if (schemas.length > 1 && schemas[0]) {
-      zodType = `${schemas[0]}.and(${schemas.slice(1).join(").and(")})`;
+    if (members.length === 1 && members[0]) {
+      ir = members[0];
+    } else if (members.length > 1) {
+      ir = { kind: "intersection", members };
     } else {
-      zodType = "z.unknown()";
+      ir = { kind: "unknown" };
     }
-    return nullable ? `${zodType}.nullable()` : zodType;
+    return nullable ? { kind: "union", members: [ir, { kind: "null" }] } : ir;
   }
 
   // Handle oneOf (union)
   if (schema.oneOf && schema.oneOf.length > 0) {
-    const schemas = schema.oneOf
+    const members = schema.oneOf
       .filter((s): s is SchemaObject => !("$ref" in s))
-      .map((s) => schemaToZod(s, ctx));
+      .map((s) => schemaToIR(s, ctx));
 
-    if (schemas.length === 1 && schemas[0]) {
-      zodType = schemas[0];
-    } else if (schemas.length > 1) {
-      zodType = `z.union([${schemas.join(", ")}])`;
+    if (members.length === 1 && members[0]) {
+      ir = members[0];
+    } else if (members.length > 1) {
+      ir = { kind: "union", members };
     } else {
-      zodType = "z.unknown()";
+      ir = { kind: "unknown" };
     }
-    return nullable ? `${zodType}.nullable()` : zodType;
+    return nullable ? { kind: "union", members: [ir, { kind: "null" }] } : ir;
   }
 
   // Handle anyOf (union)
   if (schema.anyOf && schema.anyOf.length > 0) {
-    const schemas = schema.anyOf
+    const members = schema.anyOf
       .filter((s): s is SchemaObject => !("$ref" in s))
-      .map((s) => schemaToZod(s, ctx));
+      .map((s) => schemaToIR(s, ctx));
 
-    if (schemas.length === 1 && schemas[0]) {
-      zodType = schemas[0];
-    } else if (schemas.length > 1) {
-      zodType = `z.union([${schemas.join(", ")}])`;
+    if (members.length === 1 && members[0]) {
+      ir = members[0];
+    } else if (members.length > 1) {
+      ir = { kind: "union", members };
     } else {
-      zodType = "z.unknown()";
+      ir = { kind: "unknown" };
     }
-    return nullable ? `${zodType}.nullable()` : zodType;
+    return nullable ? { kind: "union", members: [ir, { kind: "null" }] } : ir;
   }
 
   // Handle by type
   switch (schema.type) {
     case "string":
-      zodType = getStringZodType(schema);
+      ir = getStringIR(schema);
       break;
 
     case "number":
     case "integer":
-      zodType = schema.type === "integer" ? "z.number().int()" : "z.number()";
+      ir = { kind: "number", integer: schema.type === "integer" };
       break;
 
     case "boolean":
-      zodType = "z.boolean()";
+      ir = { kind: "boolean" };
       break;
 
     case "array":
       if (schema.items && !("$ref" in schema.items)) {
-        const itemType = schemaToZod(schema.items, ctx);
-        zodType = `z.array(${itemType})`;
+        const itemIR = schemaToIR(schema.items, ctx);
+        ir = { kind: "array", items: itemIR };
       } else {
-        zodType = "z.array(z.unknown())";
+        ir = { kind: "array", items: { kind: "unknown" } };
       }
       break;
 
     case "object":
-      zodType = getObjectZodType(schema, ctx);
+      ir = getObjectIR(schema, ctx);
       break;
 
     default:
       // No type specified - check for properties to infer object
       if (schema.properties) {
-        zodType = getObjectZodType(schema, ctx);
+        ir = getObjectIR(schema, ctx);
       } else if (schema.additionalProperties) {
-        zodType = getRecordZodType(schema, ctx);
+        ir = getRecordIR(schema, ctx);
       } else {
-        zodType = "z.unknown()";
+        ir = { kind: "unknown" };
       }
   }
 
-  return nullable ? `${zodType}.nullable()` : zodType;
+  return nullable ? { kind: "union", members: [ir, { kind: "null" }] } : ir;
 }
 
 /**
- * Get Zod type for string schema with format support
- * Uses Zod v4 top-level format validators
+ * Get IR for string schema with format support
  */
-function getStringZodType(schema: SchemaObject): string {
-  switch (schema.format) {
-    case "date-time":
-      return "z.iso.datetime()";
-    case "date":
-      return "z.iso.date()";
-    case "time":
-      return "z.iso.time()";
-    case "email":
-      return "z.email()";
-    case "uri":
-    case "url":
-      return "z.url()";
-    case "uuid":
-      return "z.uuid()";
-    case "ipv4":
-      return "z.ipv4()";
-    case "ipv6":
-      return "z.ipv6()";
-    default:
-      return "z.string()";
-  }
+function getStringIR(schema: SchemaObject): SchemaIR {
+  const formatMap: Record<string, StringFormat> = {
+    "date-time": "datetime",
+    date: "date",
+    time: "time",
+    email: "email",
+    uri: "url",
+    url: "url",
+    uuid: "uuid",
+    ipv4: "ipv4",
+    ipv6: "ipv6",
+  };
+
+  const format = schema.format ? formatMap[schema.format] : undefined;
+
+  return { kind: "string", format };
 }
 
 /**
- * Get Zod type for object schema
+ * Get IR for object schema
  */
-function getObjectZodType(
-  schema: SchemaObject,
-  ctx: OpenAPIZodContext,
-): string {
+function getObjectIR(schema: SchemaObject, ctx: OpenAPIIRContext): SchemaIR {
   if (!schema.properties && !schema.additionalProperties) {
-    return "z.object({})";
+    return { kind: "object", properties: {} };
   }
 
-  const fields: string[] = [];
+  const properties: Record<string, ObjectPropertyIR> = {};
   const required = new Set(schema.required || []);
 
   // Handle regular properties
+  // Note: We store the original property name in the IR. The emitter is responsible
+  // for applying getSafePropertyName() at code generation time.
   if (schema.properties) {
     for (const [propName, propSchema] of Object.entries(schema.properties)) {
       if ("$ref" in propSchema) continue;
 
-      const propZod = schemaToZod(propSchema, ctx);
+      const propIR = schemaToIR(propSchema, ctx);
       const isRequired = required.has(propName);
-      const safeName = getSafePropertyName(propName);
 
-      if (isRequired) {
-        fields.push(`  ${safeName}: ${propZod}`);
-      } else {
-        fields.push(`  ${safeName}: ${propZod}.optional()`);
-      }
+      properties[propName] = {
+        schema: propIR,
+        required: isRequired,
+      };
     }
   }
 
-  let objectType = `z.object({\n${fields.join(",\n")}\n})`;
-
   // Handle additionalProperties
+  let additionalProperties: boolean | SchemaIR | undefined;
+
   if (schema.additionalProperties === true) {
-    objectType = `${objectType}.passthrough()`;
+    additionalProperties = true; // passthrough
   } else if (
     typeof schema.additionalProperties === "object" &&
     !("$ref" in schema.additionalProperties)
   ) {
-    // If we have both properties and typed additionalProperties,
-    // use catchall to allow additional typed properties
-    const addPropType = schemaToZod(schema.additionalProperties, ctx);
-    objectType = `${objectType}.catchall(${addPropType})`;
+    additionalProperties = schemaToIR(schema.additionalProperties, ctx);
   }
 
-  return objectType;
+  return { kind: "object", properties, additionalProperties };
 }
 
 /**
- * Get Zod type for a record/dictionary schema (object with only additionalProperties)
+ * Get IR for a record/dictionary schema (object with only additionalProperties)
  */
-function getRecordZodType(
-  schema: SchemaObject,
-  ctx: OpenAPIZodContext,
-): string {
+function getRecordIR(schema: SchemaObject, ctx: OpenAPIIRContext): SchemaIR {
   if (schema.additionalProperties === true) {
-    return "z.record(z.string(), z.unknown())";
+    return {
+      kind: "record",
+      keyType: { kind: "string" },
+      valueType: { kind: "unknown" },
+    };
   }
 
   if (
     typeof schema.additionalProperties === "object" &&
     !("$ref" in schema.additionalProperties)
   ) {
-    const valueType = schemaToZod(schema.additionalProperties, ctx);
-    return `z.record(z.string(), ${valueType})`;
+    const valueIR = schemaToIR(schema.additionalProperties, ctx);
+    return {
+      kind: "record",
+      keyType: { kind: "string" },
+      valueType: valueIR,
+    };
   }
 
-  return "z.record(z.string(), z.unknown())";
+  return {
+    kind: "record",
+    keyType: { kind: "string" },
+    valueType: { kind: "unknown" },
+  };
 }

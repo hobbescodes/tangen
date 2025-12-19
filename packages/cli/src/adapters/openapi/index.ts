@@ -2,14 +2,15 @@
  * OpenAPI Source Adapter
  *
  * Implements the SourceAdapter interface for OpenAPI sources.
- * Handles spec loading, Zod schema generation, and code generation.
+ * Handles spec loading, schema generation, and code generation.
  */
 
+import { getEmitter } from "@/generators/emitters";
 import {
   generateFormOptionsCode,
   getOpenAPIRequestSchemaName,
 } from "@/generators/forms";
-import { generateOpenAPIZodSchemas } from "@/generators/zod/openapi";
+import { parseOpenAPIToIR } from "@/generators/ir";
 import { generateOpenAPIClient } from "./client";
 import {
   discoverOpenAPIEntities,
@@ -86,24 +87,33 @@ class OpenAPIAdapterImpl implements IOpenAPIAdapter {
   }
 
   /**
-   * Generate Zod schemas for validation
+   * Generate validation schemas
    * This is the primary type generation for OpenAPI - outputs to <source>/schema.ts
    */
   generateSchemas(
     schema: OpenAPIAdapterSchema,
     _config: OpenAPISourceConfig,
-    _options: SchemaGenOptions,
+    options: SchemaGenOptions,
   ): GeneratedFile {
     const { document } = schema;
     const operations = extractOperations(document);
 
-    // Always generate full schemas (not just request bodies)
-    const result = generateOpenAPIZodSchemas(document, operations);
+    // Parse OpenAPI to IR
+    const irResult = parseOpenAPIToIR(document, operations);
+
+    // Get the appropriate emitter for the configured validator
+    const emitter = getEmitter(options.validator);
+
+    // Emit IR to validator-specific code
+    const emitterResult = emitter.emit(irResult.schemas);
+
+    // Combine warnings from both IR parsing and emission
+    const warnings = [...irResult.warnings, ...emitterResult.warnings];
 
     return {
       filename: "schema.ts",
-      content: result.content,
-      warnings: result.warnings,
+      content: emitterResult.content,
+      warnings: warnings.length > 0 ? warnings : undefined,
     };
   }
 

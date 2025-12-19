@@ -2,13 +2,62 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { supportedValidators } from "@/generators/emitters";
 import { openapiAdapter } from "./index";
 import { extractOperations } from "./schema";
 
 import type { OpenAPISourceConfig } from "@/core/config";
-import type { OpenAPIAdapterSchema } from "../types";
+import type { ValidatorLibrary } from "@/generators/emitters";
+import type { OpenAPIAdapterSchema, SchemaGenOptions } from "../types";
 
 const fixturesDir = join(__dirname, "../../test/fixtures/openapi");
+
+/**
+ * Default schema generation options for tests
+ */
+const defaultSchemaOptions: SchemaGenOptions = {
+  validator: "zod",
+};
+
+/**
+ * Validator-specific patterns to check for in generated code
+ */
+const validatorPatterns: Record<
+  ValidatorLibrary,
+  {
+    import: string;
+    object: string;
+    string: string;
+    enum: string;
+    array: string;
+    nullable: string;
+  }
+> = {
+  zod: {
+    import: 'import * as z from "zod"',
+    object: "z.object(",
+    string: "z.string()",
+    enum: "z.enum(",
+    array: "z.array(",
+    nullable: ".nullable()",
+  },
+  valibot: {
+    import: 'import * as v from "valibot"',
+    object: "v.object(",
+    string: "v.string()",
+    enum: "v.picklist(",
+    array: "v.array(",
+    nullable: "v.nullish(",
+  },
+  arktype: {
+    import: 'import { type } from "arktype"',
+    object: "type({",
+    string: '"string"',
+    enum: "type.enumerated(",
+    array: "type(",
+    nullable: "| null",
+  },
+};
 
 describe("OpenAPI Adapter", () => {
   const testConfig: OpenAPISourceConfig = {
@@ -39,7 +88,11 @@ describe("OpenAPI Adapter", () => {
   describe("generateSchemas", () => {
     it("generates Zod schemas and TypeScript types", async () => {
       const schema = await openapiAdapter.loadSchema(testConfig);
-      const result = openapiAdapter.generateSchemas(schema, testConfig, {});
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        testConfig,
+        defaultSchemaOptions,
+      );
 
       expect(result.filename).toBe("schema.ts");
       expect(result.content).toContain('import * as z from "zod"');
@@ -54,7 +107,11 @@ describe("OpenAPI Adapter", () => {
 
     it("generates operation-specific types", async () => {
       const schema = await openapiAdapter.loadSchema(testConfig);
-      const result = openapiAdapter.generateSchemas(schema, testConfig, {});
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        testConfig,
+        defaultSchemaOptions,
+      );
 
       // Should have params types for operations with parameters
       expect(result.content).toContain("ListPetsParams");
@@ -234,7 +291,7 @@ describe("Remote OpenAPI Spec Loading", () => {
       const typesResult = openapiAdapter.generateSchemas(
         cachedSchema,
         config,
-        {},
+        defaultSchemaOptions,
       );
       expect(typesResult.content).toContain("petSchema");
 
@@ -262,8 +319,16 @@ describe("Remote OpenAPI Spec Loading", () => {
       const schema2 = await openapiAdapter.loadSchema(config);
 
       // Generate types from both
-      const types1 = openapiAdapter.generateSchemas(schema1, config, {});
-      const types2 = openapiAdapter.generateSchemas(schema2, config, {});
+      const types1 = openapiAdapter.generateSchemas(
+        schema1,
+        config,
+        defaultSchemaOptions,
+      );
+      const types2 = openapiAdapter.generateSchemas(
+        schema2,
+        config,
+        defaultSchemaOptions,
+      );
 
       // Output should be identical
       expect(types1.content).toBe(types2.content);
@@ -306,7 +371,7 @@ describe("Remote OpenAPI Spec Loading", () => {
       const typesResult = openapiAdapter.generateSchemas(
         cachedSchema as typeof schema,
         config,
-        {},
+        defaultSchemaOptions,
       );
       expect(typesResult.content).toContain("petSchema");
     });
@@ -658,7 +723,11 @@ describe("OpenAPI Types Generation Edge Cases", () => {
     };
 
     const schema = await openapiAdapter.loadSchema(config);
-    const result = openapiAdapter.generateSchemas(schema, config, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      config,
+      defaultSchemaOptions,
+    );
 
     // Should still generate valid TypeScript
     expect(result.content).toContain('import * as z from "zod"');
@@ -674,7 +743,11 @@ describe("OpenAPI Types Generation Edge Cases", () => {
     };
 
     const schema = await openapiAdapter.loadSchema(config);
-    const result = openapiAdapter.generateSchemas(schema, config, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      config,
+      defaultSchemaOptions,
+    );
 
     // The petstore fixture has date-time formatted strings - using Zod v4 top-level APIs
     expect(result.content).toContain("z.iso.datetime()");
@@ -690,7 +763,11 @@ describe("OpenAPI Types Generation Edge Cases", () => {
     };
 
     const schema = await openapiAdapter.loadSchema(config);
-    const result = openapiAdapter.generateSchemas(schema, config, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      config,
+      defaultSchemaOptions,
+    );
 
     // The petstore fixture has Species and PetStatus enums
     expect(result.content).toContain("z.enum(");
@@ -713,7 +790,11 @@ describe("OpenAPI Types Generation Edge Cases", () => {
       spec: "./empty.json",
     };
 
-    const result = openapiAdapter.generateSchemas(emptySchema, config, {});
+    const result = openapiAdapter.generateSchemas(
+      emptySchema,
+      config,
+      defaultSchemaOptions,
+    );
 
     expect(result.content).toContain('import * as z from "zod"');
     expect(result.filename).toBe("schema.ts");
@@ -728,7 +809,11 @@ describe("OpenAPI Types Generation Edge Cases", () => {
     };
 
     const schema = await openapiAdapter.loadSchema(config);
-    const result = openapiAdapter.generateSchemas(schema, config, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      config,
+      defaultSchemaOptions,
+    );
 
     // Should handle array types (tags field in Pet)
     expect(result.content).toContain("z.array(");
@@ -743,7 +828,11 @@ describe("OpenAPI Types Generation Edge Cases", () => {
     };
 
     const schema = await openapiAdapter.loadSchema(config);
-    const result = openapiAdapter.generateSchemas(schema, config, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      config,
+      defaultSchemaOptions,
+    );
 
     // Should handle integer/number types (age field in Pet)
     expect(result.content).toContain("z.number()");
@@ -758,10 +847,14 @@ describe("OpenAPI Types Generation Edge Cases", () => {
     };
 
     const schema = await openapiAdapter.loadSchema(config);
-    const result = openapiAdapter.generateSchemas(schema, config, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      config,
+      defaultSchemaOptions,
+    );
 
-    // Should mark optional fields with .optional()
-    expect(result.content).toContain(".optional()");
+    // Should mark optional fields with .nullish() (handles both null and undefined)
+    expect(result.content).toContain(".nullish()");
   });
 
   it("generates object schemas with nested properties", async () => {
@@ -773,7 +866,11 @@ describe("OpenAPI Types Generation Edge Cases", () => {
     };
 
     const schema = await openapiAdapter.loadSchema(config);
-    const result = openapiAdapter.generateSchemas(schema, config, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      config,
+      defaultSchemaOptions,
+    );
 
     // Should generate z.object() for complex types
     expect(result.content).toContain("z.object({");
@@ -815,7 +912,11 @@ describe("OpenAPI Types Generation Edge Cases", () => {
       spec: "./test.json",
     };
 
-    const result = openapiAdapter.generateSchemas(boolSchema, config, {});
+    const result = openapiAdapter.generateSchemas(
+      boolSchema,
+      config,
+      defaultSchemaOptions,
+    );
     expect(result.content).toContain("z.boolean()");
   });
 });
@@ -830,7 +931,11 @@ describe("OpenAPI Extended Types Generation", () => {
 
   it("handles all string format types", async () => {
     const schema = await openapiAdapter.loadSchema(extendedConfig);
-    const result = openapiAdapter.generateSchemas(schema, extendedConfig, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      extendedConfig,
+      defaultSchemaOptions,
+    );
 
     // Various string formats - using Zod v4 top-level APIs
     expect(result.content).toContain("z.uuid()");
@@ -845,7 +950,11 @@ describe("OpenAPI Extended Types Generation", () => {
 
   it("handles nullable types", async () => {
     const schema = await openapiAdapter.loadSchema(extendedConfig);
-    const result = openapiAdapter.generateSchemas(schema, extendedConfig, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      extendedConfig,
+      defaultSchemaOptions,
+    );
 
     // Nullable fields should have .nullable()
     expect(result.content).toContain(".nullable()");
@@ -853,7 +962,11 @@ describe("OpenAPI Extended Types Generation", () => {
 
   it("handles allOf schemas (intersection)", async () => {
     const schema = await openapiAdapter.loadSchema(extendedConfig);
-    const result = openapiAdapter.generateSchemas(schema, extendedConfig, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      extendedConfig,
+      defaultSchemaOptions,
+    );
 
     // allOf with multiple schemas creates intersection with .and()
     expect(result.content).toContain(".and(");
@@ -861,7 +974,11 @@ describe("OpenAPI Extended Types Generation", () => {
 
   it("handles oneOf schemas (union)", async () => {
     const schema = await openapiAdapter.loadSchema(extendedConfig);
-    const result = openapiAdapter.generateSchemas(schema, extendedConfig, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      extendedConfig,
+      defaultSchemaOptions,
+    );
 
     // oneOf creates z.union()
     expect(result.content).toContain("z.union(");
@@ -869,7 +986,11 @@ describe("OpenAPI Extended Types Generation", () => {
 
   it("handles anyOf schemas (union)", async () => {
     const schema = await openapiAdapter.loadSchema(extendedConfig);
-    const result = openapiAdapter.generateSchemas(schema, extendedConfig, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      extendedConfig,
+      defaultSchemaOptions,
+    );
 
     // anyOf also creates z.union()
     expect(result.content).toContain("z.union(");
@@ -877,7 +998,11 @@ describe("OpenAPI Extended Types Generation", () => {
 
   it("handles additionalProperties: true (passthrough)", async () => {
     const schema = await openapiAdapter.loadSchema(extendedConfig);
-    const result = openapiAdapter.generateSchemas(schema, extendedConfig, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      extendedConfig,
+      defaultSchemaOptions,
+    );
 
     // additionalProperties: true should use .passthrough()
     expect(result.content).toContain(".passthrough()");
@@ -885,7 +1010,11 @@ describe("OpenAPI Extended Types Generation", () => {
 
   it("handles typed additionalProperties (catchall)", async () => {
     const schema = await openapiAdapter.loadSchema(extendedConfig);
-    const result = openapiAdapter.generateSchemas(schema, extendedConfig, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      extendedConfig,
+      defaultSchemaOptions,
+    );
 
     // typed additionalProperties should use .catchall()
     expect(result.content).toContain(".catchall(");
@@ -925,13 +1054,21 @@ describe("OpenAPI Extended Types Generation", () => {
       spec: "./record.json",
     };
 
-    const result = openapiAdapter.generateSchemas(recordSchema, config, {});
+    const result = openapiAdapter.generateSchemas(
+      recordSchema,
+      config,
+      defaultSchemaOptions,
+    );
     expect(result.content).toContain("z.record(z.string()");
   });
 
   it("handles special property names that need quoting", async () => {
     const schema = await openapiAdapter.loadSchema(extendedConfig);
-    const result = openapiAdapter.generateSchemas(schema, extendedConfig, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      extendedConfig,
+      defaultSchemaOptions,
+    );
 
     // Property names with hyphens should be quoted
     expect(result.content).toContain('"special-name"');
@@ -973,7 +1110,11 @@ describe("OpenAPI Extended Types Generation", () => {
       spec: "./inferred.json",
     };
 
-    const result = openapiAdapter.generateSchemas(inferredSchema, config, {});
+    const result = openapiAdapter.generateSchemas(
+      inferredSchema,
+      config,
+      defaultSchemaOptions,
+    );
     expect(result.content).toContain("z.object({");
   });
 
@@ -1010,7 +1151,11 @@ describe("OpenAPI Extended Types Generation", () => {
       spec: "./record.json",
     };
 
-    const result = openapiAdapter.generateSchemas(recordSchema, config, {});
+    const result = openapiAdapter.generateSchemas(
+      recordSchema,
+      config,
+      defaultSchemaOptions,
+    );
     expect(result.content).toContain("z.record(z.string()");
   });
 
@@ -1050,7 +1195,7 @@ describe("OpenAPI Extended Types Generation", () => {
     const result = openapiAdapter.generateSchemas(
       passthroughSchema,
       config,
-      {},
+      defaultSchemaOptions,
     );
     expect(result.content).toContain("z.record(z.string(), z.unknown())");
   });
@@ -1098,7 +1243,7 @@ describe("OpenAPI Extended Types Generation", () => {
     const result = openapiAdapter.generateSchemas(
       singleAllOfSchema,
       config,
-      {},
+      defaultSchemaOptions,
     );
     expect(result.content).toContain("z.object({");
   });
@@ -1141,7 +1286,7 @@ describe("OpenAPI Extended Types Generation", () => {
     const result = openapiAdapter.generateSchemas(
       singleOneOfSchema,
       config,
-      {},
+      defaultSchemaOptions,
     );
     expect(result.content).toContain("z.string()");
   });
@@ -1184,14 +1329,18 @@ describe("OpenAPI Extended Types Generation", () => {
     const result = openapiAdapter.generateSchemas(
       singleAnyOfSchema,
       config,
-      {},
+      defaultSchemaOptions,
     );
     expect(result.content).toContain("z.number()");
   });
 
   it("handles nullable types in schemas", async () => {
     const schema = await openapiAdapter.loadSchema(extendedConfig);
-    const result = openapiAdapter.generateSchemas(schema, extendedConfig, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      extendedConfig,
+      defaultSchemaOptions,
+    );
 
     // Pet has nullable age and weight
     expect(result.content).toContain("z.number().nullable()");
@@ -1199,7 +1348,11 @@ describe("OpenAPI Extended Types Generation", () => {
 
   it("handles required query parameters", async () => {
     const schema = await openapiAdapter.loadSchema(extendedConfig);
-    const result = openapiAdapter.generateSchemas(schema, extendedConfig, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      extendedConfig,
+      defaultSchemaOptions,
+    );
 
     // listPets has required limit param
     expect(result.content).toContain("listPetsParamsSchema");
@@ -1285,13 +1438,137 @@ describe("generateSchemas", () => {
 
   it("generates Zod schemas for all operations", async () => {
     const schema = await openapiAdapter.loadSchema(config);
-    const result = openapiAdapter.generateSchemas(schema, config, {});
+    const result = openapiAdapter.generateSchemas(
+      schema,
+      config,
+      defaultSchemaOptions,
+    );
 
     expect(result.filename).toBe("schema.ts");
     expect(result.content).toContain("import * as z from");
     // Should have component schemas
     expect(result.content).toContain("petSchema");
     expect(result.content).toContain("speciesSchema");
+  });
+});
+
+describe("Multi-Validator Schema Generation", () => {
+  const config: OpenAPISourceConfig = {
+    name: "petstore",
+    type: "openapi",
+    generates: ["query"],
+    spec: join(fixturesDir, "petstore.json"),
+  };
+
+  const extendedConfig: OpenAPISourceConfig = {
+    name: "petstore-extended",
+    type: "openapi",
+    generates: ["query"],
+    spec: join(fixturesDir, "petstore-extended.json"),
+  };
+
+  describe.each(
+    supportedValidators,
+  )("generateSchemas with %s validator", (validator) => {
+    const schemaOptions: SchemaGenOptions = { validator };
+    const patterns = validatorPatterns[validator];
+
+    it("generates correct import statement", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        config,
+        schemaOptions,
+      );
+
+      expect(result.content).toContain(patterns.import);
+    });
+
+    it("generates schema exports", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        config,
+        schemaOptions,
+      );
+
+      // All validators should export the same schema names
+      expect(result.content).toContain("export const petSchema");
+      expect(result.content).toContain("export const speciesSchema");
+      expect(result.content).toContain("export type Pet");
+      expect(result.content).toContain("export type Species");
+    });
+
+    it("generates object schemas", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        config,
+        schemaOptions,
+      );
+
+      expect(result.content).toContain(patterns.object);
+    });
+
+    it("generates enum schemas", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        config,
+        schemaOptions,
+      );
+
+      expect(result.content).toContain(patterns.enum);
+    });
+
+    it("generates array schemas", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        config,
+        schemaOptions,
+      );
+
+      expect(result.content).toContain(patterns.array);
+    });
+
+    it("handles nullable types", async () => {
+      const schema = await openapiAdapter.loadSchema(extendedConfig);
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        extendedConfig,
+        schemaOptions,
+      );
+
+      // Each validator has its own nullable syntax
+      expect(result.content).toContain(patterns.nullable);
+    });
+
+    it("generates operation params schemas", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        config,
+        schemaOptions,
+      );
+
+      // All validators should generate params schemas
+      expect(result.content).toContain("listPetsParamsSchema");
+      expect(result.content).toContain("export type ListPetsParams");
+    });
+
+    it("generates response schemas", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        config,
+        schemaOptions,
+      );
+
+      // All validators should generate response schemas
+      expect(result.content).toContain("listPetsResponseSchema");
+      expect(result.content).toContain("export type ListPetsResponse");
+    });
   });
 });
 

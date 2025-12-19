@@ -142,12 +142,13 @@ export async function generate(
       force,
     });
 
-    // Step 2: Generate Zod schemas if needed (at source root)
+    // Step 2: Generate validation schemas if needed (at source root)
     if (needsZodSchemas) {
       schemaPath = await generateSchemaFile({
         source,
         sourceOutputDir,
         schema,
+        config,
       });
     }
 
@@ -263,23 +264,25 @@ interface GenerateSchemaFileOptions {
   source: SourceConfig;
   sourceOutputDir: string;
   schema: unknown;
+  config: TangramsConfig;
 }
 
 /**
- * Generate Zod schema file for a source
+ * Generate validation schema file for a source
  * Outputs to: <source-name>/schema.ts
  * Returns the absolute path to the generated schema file
  */
 async function generateSchemaFile(
   options: GenerateSchemaFileOptions,
 ): Promise<string> {
-  const { source, sourceOutputDir, schema } = options;
+  const { source, sourceOutputDir, schema, config } = options;
 
-  consola.info(`Generating Zod schemas for: ${source.name}`);
+  consola.info(`Generating ${config.validator} schemas for: ${source.name}`);
 
   const adapter = getAdapter(source.type);
   const schemaGenOptions = {
     scalars: getScalarsFromSource(source),
+    validator: config.validator,
   };
   const result = adapter.generateSchemas(schema, source, schemaGenOptions);
 

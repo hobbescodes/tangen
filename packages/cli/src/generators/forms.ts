@@ -1,9 +1,12 @@
 /**
  * TanStack Form options generator
  * Generates formOptions exports for mutations
+ *
+ * This generator is validator-agnostic because TanStack Form uses the
+ * Standard Schema protocol, which is supported by Zod, Valibot, and ArkType.
  */
 
-import { toCamelCase, toPascalCase, toSchemaName } from "./zod/index";
+import { toCamelCase, toPascalCase, toSchemaName } from "./ir/utils";
 
 import type { FormOverridesConfig } from "@/core/config";
 

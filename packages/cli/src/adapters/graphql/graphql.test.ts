@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { Kind, OperationTypeNode, buildSchema } from "graphql";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { supportedValidators } from "@/generators/emitters";
 import { graphqlAdapter } from "./index";
 import {
   isFileSchemaConfig,
@@ -13,9 +14,49 @@ import {
 } from "./schema";
 
 import type { GraphQLSourceConfig } from "@/core/config";
-import type { GraphQLAdapterSchema } from "../types";
+import type { ValidatorLibrary } from "@/generators/emitters";
+import type { GraphQLAdapterSchema, SchemaGenOptions } from "../types";
 
 const fixturesDir = join(__dirname, "../../test/fixtures/graphql");
+
+/**
+ * Default schema generation options for tests
+ */
+const defaultSchemaOptions: SchemaGenOptions = {
+  validator: "zod",
+};
+
+/**
+ * Validator-specific patterns to check for in generated code
+ */
+const validatorPatterns: Record<
+  ValidatorLibrary,
+  {
+    import: string;
+    object: string;
+    string: string;
+    enum: string;
+  }
+> = {
+  zod: {
+    import: 'import * as z from "zod"',
+    object: "z.object(",
+    string: "z.string()",
+    enum: "z.enum(",
+  },
+  valibot: {
+    import: 'import * as v from "valibot"',
+    object: "v.object(",
+    string: "v.string()",
+    enum: "v.picklist(",
+  },
+  arktype: {
+    import: 'import { type } from "arktype"',
+    object: "type({",
+    string: '"string"',
+    enum: "type.enumerated(",
+  },
+};
 
 // Test schema for unit tests (doesn't require network)
 const testSchemaSDL = `
@@ -367,7 +408,11 @@ describe("generateSchemas", () => {
       },
     };
 
-    const result = graphqlAdapter.generateSchemas(schema, testConfig, {});
+    const result = graphqlAdapter.generateSchemas(
+      schema,
+      testConfig,
+      defaultSchemaOptions,
+    );
 
     expect(result.filename).toBe("schema.ts");
     expect(result.content).toContain("import * as z from");
@@ -413,10 +458,142 @@ describe("generateSchemas", () => {
       },
     };
 
-    const result = graphqlAdapter.generateSchemas(schema, testConfig, {});
+    const result = graphqlAdapter.generateSchemas(
+      schema,
+      testConfig,
+      defaultSchemaOptions,
+    );
 
     expect(result.content).toContain("userRoleSchema");
     expect(result.content).toContain('z.enum(["ADMIN", "USER"])');
+  });
+});
+
+describe("Multi-Validator Schema Generation", () => {
+  const schemaWithInputs = buildSchema(`
+    enum UserRole {
+      ADMIN
+      USER
+    }
+
+    input CreateUserInput {
+      name: String!
+      email: String!
+      role: UserRole
+    }
+
+    type User {
+      id: ID!
+      name: String!
+    }
+
+    type Query {
+      users: [User!]!
+    }
+
+    type Mutation {
+      createUser(input: CreateUserInput!): User!
+    }
+  `);
+
+  const testConfig: GraphQLSourceConfig = {
+    name: "test-api",
+    type: "graphql",
+    schema: { url: "http://localhost:4000/graphql" },
+    documents: "./src/**/*.graphql",
+    generates: ["query"],
+  };
+
+  // Create a test schema with operations that use the input types
+  const createTestSchema = (): GraphQLAdapterSchema => ({
+    schema: schemaWithInputs,
+    documents: {
+      operations: [
+        {
+          name: "CreateUser",
+          operation: "mutation",
+          node: {
+            kind: Kind.OPERATION_DEFINITION,
+            operation: OperationTypeNode.MUTATION,
+            name: { kind: Kind.NAME, value: "CreateUser" },
+            variableDefinitions: [
+              {
+                kind: Kind.VARIABLE_DEFINITION,
+                variable: {
+                  kind: Kind.VARIABLE,
+                  name: { kind: Kind.NAME, value: "input" },
+                },
+                type: {
+                  kind: Kind.NON_NULL_TYPE,
+                  type: {
+                    kind: Kind.NAMED_TYPE,
+                    name: { kind: Kind.NAME, value: "CreateUserInput" },
+                  },
+                },
+              },
+            ],
+            selectionSet: { kind: Kind.SELECTION_SET, selections: [] },
+          },
+          document:
+            "mutation CreateUser($input: CreateUserInput!) { createUser(input: $input) { id } }",
+        },
+      ],
+      fragments: [],
+    },
+  });
+
+  describe.each(
+    supportedValidators,
+  )("generateSchemas with %s validator", (validator) => {
+    const schemaOptions: SchemaGenOptions = { validator };
+    const patterns = validatorPatterns[validator];
+
+    it("generates correct import statement", () => {
+      const schema = createTestSchema();
+      const result = graphqlAdapter.generateSchemas(
+        schema,
+        testConfig,
+        schemaOptions,
+      );
+
+      expect(result.content).toContain(patterns.import);
+    });
+
+    it("generates schema exports", () => {
+      const schema = createTestSchema();
+      const result = graphqlAdapter.generateSchemas(
+        schema,
+        testConfig,
+        schemaOptions,
+      );
+
+      // All validators should export the same schema names
+      expect(result.content).toContain("export const createUserInputSchema");
+      expect(result.content).toContain("export type CreateUserInput");
+    });
+
+    it("generates object schemas for input types", () => {
+      const schema = createTestSchema();
+      const result = graphqlAdapter.generateSchemas(
+        schema,
+        testConfig,
+        schemaOptions,
+      );
+
+      expect(result.content).toContain(patterns.object);
+    });
+
+    it("generates enum schemas", () => {
+      const schema = createTestSchema();
+      const result = graphqlAdapter.generateSchemas(
+        schema,
+        testConfig,
+        schemaOptions,
+      );
+
+      expect(result.content).toContain("export const userRoleSchema");
+      expect(result.content).toContain(patterns.enum);
+    });
   });
 });
 

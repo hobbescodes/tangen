@@ -6,11 +6,14 @@
  */
 
 import { loadDocuments } from "@/core/documents";
+import { getEmitter } from "@/generators/emitters";
 import { generateFormOptionsCode } from "@/generators/forms";
 import { generateFunctions } from "@/generators/functions";
+import {
+  parseGraphQLToIR,
+  toMutationVariablesSchemaName,
+} from "@/generators/ir";
 import { generateGraphQLOperations } from "@/generators/operations";
-import { generateGraphQLZodSchemas } from "@/generators/zod/graphql";
-import { toMutationVariablesSchemaName } from "@/generators/zod/index";
 import { generateGraphQLClient } from "./client";
 import {
   discoverGraphQLEntities,
@@ -141,7 +144,7 @@ class GraphQLAdapterImpl implements IGraphQLAdapter {
   }
 
   /**
-   * Generate Zod schemas for all types (enums, inputs, fragments, variables, responses)
+   * Generate validation schemas for all types (enums, inputs, fragments, variables, responses)
    * This outputs to schema.ts
    */
   generateSchemas(
@@ -149,14 +152,24 @@ class GraphQLAdapterImpl implements IGraphQLAdapter {
     _config: GraphQLSourceConfig,
     options: SchemaGenOptions,
   ): GeneratedFile {
-    const result = generateGraphQLZodSchemas(schema.schema, schema.documents, {
+    // Parse GraphQL to IR
+    const irResult = parseGraphQLToIR(schema.schema, schema.documents, {
       scalars: options.scalars,
     });
 
+    // Get the appropriate emitter for the configured validator
+    const emitter = getEmitter(options.validator);
+
+    // Emit IR to validator-specific code
+    const emitterResult = emitter.emit(irResult.schemas);
+
+    // Combine warnings from both IR parsing and emission
+    const warnings = [...irResult.warnings, ...emitterResult.warnings];
+
     return {
       filename: "schema.ts",
-      content: result.content,
-      warnings: result.warnings,
+      content: emitterResult.content,
+      warnings: warnings.length > 0 ? warnings : undefined,
     };
   }
 

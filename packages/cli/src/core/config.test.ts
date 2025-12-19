@@ -599,6 +599,7 @@ describe("normalizeGenerates", () => {
 describe("utility functions", () => {
   const multiSourceConfig: TangramsConfig = {
     output: "./src/generated",
+    validator: "zod",
     sources: [
       {
         name: "main-api",
@@ -624,6 +625,7 @@ describe("utility functions", () => {
 
   const singleSourceConfig: TangramsConfig = {
     output: "./src/generated",
+    validator: "zod",
     sources: [
       {
         name: "graphql",

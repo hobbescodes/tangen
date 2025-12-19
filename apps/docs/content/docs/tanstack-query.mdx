@@ -18,17 +18,39 @@ Install the required dependencies based on your data source:
 <Tabs items={['bun', 'npm', 'pnpm']}>
   <Tab value="bun">
 ```bash
-bun add @tanstack/react-query zod
+bun add @tanstack/react-query
 ```
   </Tab>
   <Tab value="npm">
 ```bash
-npm install @tanstack/react-query zod
+npm install @tanstack/react-query
 ```
   </Tab>
   <Tab value="pnpm">
 ```bash
-pnpm add @tanstack/react-query zod
+pnpm add @tanstack/react-query
+```
+  </Tab>
+</Tabs>
+
+### Validation Library
+
+Install your chosen validator (Zod is the default). See [Validator Libraries](/docs#validator-libraries) for details.
+
+<Tabs items={['Zod', 'Valibot', 'ArkType']}>
+  <Tab value="Zod">
+```bash
+bun add zod
+```
+  </Tab>
+  <Tab value="Valibot">
+```bash
+bun add valibot
+```
+  </Tab>
+  <Tab value="ArkType">
+```bash
+bun add arktype
 ```
   </Tab>
 </Tabs>
@@ -191,7 +213,7 @@ bunx tangrams generate
 src/generated/
 └── <source>/
     ├── client.ts             # API client (shared)
-    ├── schema.ts             # Zod schemas + TypeScript types (inferred via z.infer)
+    ├── schema.ts             # Validation schemas + TypeScript types
     ├── functions.ts          # Standalone fetch functions (auto-generated)
     └── query/
         └── operations.ts     # queryOptions and mutationOptions
@@ -215,7 +237,7 @@ export const getClient = async () => {
 }
 ```
 
-**`schema.ts`** - Zod schemas and TypeScript types from your schema and operations:
+**`schema.ts`** - Validation schemas and TypeScript types from your schema and operations (shown with Zod, the default):
 
 ```typescript
 import * as z from "zod"
@@ -261,7 +283,7 @@ export const createUserMutationOptions = () =>
 
 ### OpenAPI Output
 
-**`<source>/schema.ts`** - Zod schemas and inferred TypeScript types:
+**`<source>/schema.ts`** - Validation schemas and inferred TypeScript types (shown with Zod, the default):
 
 ```typescript
 import * as z from "zod"
@@ -303,7 +325,7 @@ export const getClient = async () => {
 }
 ```
 
-**`operations.ts`** - Query and mutation options with Zod validation:
+**`operations.ts`** - Query and mutation options with schema validation:
 
 ```typescript
 export const listUsersQueryOptions = (params?: ListUsersParams) =>
