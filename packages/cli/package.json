@@ -66,9 +66,12 @@
     "@types/micromatch": "^4.0.9",
     "@types/picomatch": "^4.0.2",
     "@vitest/coverage-istanbul": "^3.2.3",
+    "arktype": "^2.1.20",
     "graphql-request": "^7.1.2",
     "tsup": "^8.5.0",
-    "vitest": "^3.2.3"
+    "valibot": "^1.1.0",
+    "vitest": "^3.2.3",
+    "zod": "^4.0.0"
   },
   "peerDependencies": {
     "@better-fetch/fetch": ">=1.0.0",

@@ -2,10 +2,12 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { supportedValidators } from "@/generators/emitters";
 import { openapiAdapter } from "./index";
 import { extractOperations } from "./schema";
 
 import type { OpenAPISourceConfig } from "@/core/config";
+import type { ValidatorLibrary } from "@/generators/emitters";
 import type { OpenAPIAdapterSchema, SchemaGenOptions } from "../types";
 
 const fixturesDir = join(__dirname, "../../test/fixtures/openapi");
@@ -15,6 +17,46 @@ const fixturesDir = join(__dirname, "../../test/fixtures/openapi");
  */
 const defaultSchemaOptions: SchemaGenOptions = {
   validator: "zod",
+};
+
+/**
+ * Validator-specific patterns to check for in generated code
+ */
+const validatorPatterns: Record<
+  ValidatorLibrary,
+  {
+    import: string;
+    object: string;
+    string: string;
+    enum: string;
+    array: string;
+    nullable: string;
+  }
+> = {
+  zod: {
+    import: 'import * as z from "zod"',
+    object: "z.object(",
+    string: "z.string()",
+    enum: "z.enum(",
+    array: "z.array(",
+    nullable: ".nullable()",
+  },
+  valibot: {
+    import: 'import * as v from "valibot"',
+    object: "v.object(",
+    string: "v.string()",
+    enum: "v.picklist(",
+    array: "v.array(",
+    nullable: "v.nullish(",
+  },
+  arktype: {
+    import: 'import { type } from "arktype"',
+    object: "type({",
+    string: '"string"',
+    enum: "type.enumerated(",
+    array: "type(",
+    nullable: "| null",
+  },
 };
 
 describe("OpenAPI Adapter", () => {
@@ -1407,6 +1449,126 @@ describe("generateSchemas", () => {
     // Should have component schemas
     expect(result.content).toContain("petSchema");
     expect(result.content).toContain("speciesSchema");
+  });
+});
+
+describe("Multi-Validator Schema Generation", () => {
+  const config: OpenAPISourceConfig = {
+    name: "petstore",
+    type: "openapi",
+    generates: ["query"],
+    spec: join(fixturesDir, "petstore.json"),
+  };
+
+  const extendedConfig: OpenAPISourceConfig = {
+    name: "petstore-extended",
+    type: "openapi",
+    generates: ["query"],
+    spec: join(fixturesDir, "petstore-extended.json"),
+  };
+
+  describe.each(
+    supportedValidators,
+  )("generateSchemas with %s validator", (validator) => {
+    const schemaOptions: SchemaGenOptions = { validator };
+    const patterns = validatorPatterns[validator];
+
+    it("generates correct import statement", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        config,
+        schemaOptions,
+      );
+
+      expect(result.content).toContain(patterns.import);
+    });
+
+    it("generates schema exports", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        config,
+        schemaOptions,
+      );
+
+      // All validators should export the same schema names
+      expect(result.content).toContain("export const petSchema");
+      expect(result.content).toContain("export const speciesSchema");
+      expect(result.content).toContain("export type Pet");
+      expect(result.content).toContain("export type Species");
+    });
+
+    it("generates object schemas", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        config,
+        schemaOptions,
+      );
+
+      expect(result.content).toContain(patterns.object);
+    });
+
+    it("generates enum schemas", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        config,
+        schemaOptions,
+      );
+
+      expect(result.content).toContain(patterns.enum);
+    });
+
+    it("generates array schemas", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        config,
+        schemaOptions,
+      );
+
+      expect(result.content).toContain(patterns.array);
+    });
+
+    it("handles nullable types", async () => {
+      const schema = await openapiAdapter.loadSchema(extendedConfig);
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        extendedConfig,
+        schemaOptions,
+      );
+
+      // Each validator has its own nullable syntax
+      expect(result.content).toContain(patterns.nullable);
+    });
+
+    it("generates operation params schemas", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        config,
+        schemaOptions,
+      );
+
+      // All validators should generate params schemas
+      expect(result.content).toContain("listPetsParamsSchema");
+      expect(result.content).toContain("export type ListPetsParams");
+    });
+
+    it("generates response schemas", async () => {
+      const schema = await openapiAdapter.loadSchema(config);
+      const result = openapiAdapter.generateSchemas(
+        schema,
+        config,
+        schemaOptions,
+      );
+
+      // All validators should generate response schemas
+      expect(result.content).toContain("listPetsResponseSchema");
+      expect(result.content).toContain("export type ListPetsResponse");
+    });
   });
 });
 

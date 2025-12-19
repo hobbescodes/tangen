@@ -201,7 +201,13 @@ function emitObject(schema: ObjectSchemaIR, warnings: string[]): string {
     const keyStr = prop.required ? `"${propName}"` : `"${propName}?"`;
 
     // Get the type as a string for ArkType's object syntax
-    const typeStr = getTypeString(prop.schema, warnings);
+    let typeStr = getTypeString(prop.schema, warnings);
+
+    // For optional fields, make them nullish (type | null) to match Zod/Valibot behavior
+    // This allows both omission and explicit null values
+    if (!prop.required) {
+      typeStr = makeNullable(typeStr);
+    }
 
     fields.push(`  ${keyStr}: ${typeStr}`);
   }
@@ -220,6 +226,25 @@ function emitObject(schema: ObjectSchemaIR, warnings: string[]): string {
   }
 
   return `type({\n${fields.join(",\n")}\n})`;
+}
+
+/**
+ * Make a type string nullable by appending " | null"
+ * Handles both string literal types and schema references
+ */
+function makeNullable(typeStr: string): string {
+  // If it's a string literal type like "string" or "number.integer"
+  if (typeStr.startsWith('"') && typeStr.endsWith('"')) {
+    const innerType = typeStr.slice(1, -1);
+    // Don't double-add null if already present
+    if (innerType.includes(" | null")) {
+      return typeStr;
+    }
+    return `"${innerType} | null"`;
+  }
+
+  // For schema references or complex types, use .or(type("null"))
+  return `${typeStr}.or(type("null"))`;
 }
 
 /**
