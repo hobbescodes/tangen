@@ -45,7 +45,7 @@ function HomePage() {
         />
         <FeatureCard
           title="TanStack Form"
-          description="Create formOptions with Zod validation - the missing piece for type-safe forms."
+          description="Create formOptions with schema validation - the missing piece for type-safe forms."
         />
         <FeatureCard
           title="TanStack DB"
