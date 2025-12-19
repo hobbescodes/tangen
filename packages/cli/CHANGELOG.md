@@ -1,5 +1,48 @@
 # tangrams
 
+## 0.9.0
+
+### Minor Changes
+
+- 9b92c26: **Breaking Change:** Changed `output` config semantics.
+
+  The `output` option now specifies where to place the `tangrams` folder, rather than the full output path. The `tangrams` directory name is now hardcoded and always appended to the configured output path.
+
+  - **New default:** `"."` (project root)
+  - **Old default:** `"./tangrams"`
+
+  **Migration:**
+
+  - If using the default config, no changes needed - output location remains `./tangrams/<source>/...`
+  - If using a custom path like `output: "./src/generated"`, change to `output: "./src"` to generate at `./src/tangrams/<source>/...`
+
+- b6cbccc: Rename generated output files for better clarity:
+
+  - `query/operations.ts` → `query/options.ts`
+  - `form/forms.ts` → `form/options.ts`
+
+  This aligns naming with `db/collections.ts` by using descriptive file names that reflect their contents (query/mutation options and form options respectively).
+
+  **Breaking Change:** Update your imports from `/query/operations` to `/query/options` and `/form/forms` to `/form/options`.
+
+### Patch Changes
+
+- 670ae9c: Refactor code generators to use code-block-writer for consistent formatting
+
+  - Add code-block-writer dependency for structured code generation
+  - Migrate all generators to use code-block-writer:
+    - GraphQL functions generator
+    - OpenAPI functions and operations generators
+    - Query-options and form-options generators
+    - Types generator
+    - Predicates generator
+    - Schema emitters (Zod, Valibot, ArkType)
+    - OpenAPI collections generator
+    - GraphQL collections generator
+  - Fix lint warnings in generated code (template literals for fragment concatenation)
+  - Add shared writer utilities in `@/utils/writer`
+  - Consistent 2-space indentation across all generated files
+
 ## 0.8.0
 
 ### Minor Changes
