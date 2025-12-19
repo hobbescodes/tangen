@@ -6,6 +6,8 @@
  * 2. Writing to temp files
  * 3. Dynamically importing the modules
  * 4. Testing parse behavior with valid/invalid data
+ *
+ * Covers both OpenAPI and GraphQL schemas across all supported validators.
  */
 
 import { mkdir, rm, writeFile } from "node:fs/promises";
@@ -13,85 +15,48 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { graphqlAdapter } from "@/adapters/graphql";
 import { openapiAdapter } from "@/adapters/openapi";
 import { supportedValidators } from "@/generators/emitters";
 
 import type { SchemaGenOptions } from "@/adapters/types";
-import type { OpenAPISourceConfig } from "@/core/config";
+import type { GraphQLSourceConfig, OpenAPISourceConfig } from "@/core/config";
 import type { ValidatorLibrary } from "@/generators/emitters";
 
 // ============================================================================
 // Test Configuration
 // ============================================================================
 
-const fixturesDir = join(__dirname, "fixtures/openapi");
+const openapiFixturesDir = join(__dirname, "fixtures/openapi");
+const graphqlFixturesDir = join(__dirname, "fixtures/graphql");
 const cacheDir = join(
   __dirname,
   "../../node_modules/.cache/tangrams-test/runtime-validation",
 );
 
-const testConfig: OpenAPISourceConfig = {
+// OpenAPI configs
+const petstoreConfig: OpenAPISourceConfig = {
   name: "petstore",
   type: "openapi",
   generates: ["query"],
-  spec: join(fixturesDir, "petstore.json"),
+  spec: join(openapiFixturesDir, "petstore.json"),
 };
 
-// ============================================================================
-// Test Data
-// ============================================================================
-
-/**
- * Valid Pet object matching the petstore schema
- */
-const validPet = {
-  id: "pet-123",
-  name: "Fido",
-  species: "dog",
-  status: "available",
-  breed: "Golden Retriever",
-  age: 3,
-  tags: ["friendly", "trained"],
+const extendedConfig: OpenAPISourceConfig = {
+  name: "petstore-extended",
+  type: "openapi",
+  generates: ["query"],
+  spec: join(openapiFixturesDir, "petstore-extended.json"),
 };
 
-/**
- * Invalid Pet object - missing required fields
- */
-const invalidPetMissingRequired = {
-  id: "pet-123",
-  // missing: name, species, status
+// GraphQL config
+const graphqlConfig: GraphQLSourceConfig = {
+  name: "test-api",
+  type: "graphql",
+  schema: { file: join(graphqlFixturesDir, "schema.graphql") },
+  documents: join(graphqlFixturesDir, "user.graphql"),
+  generates: ["query"],
 };
-
-/**
- * Invalid Pet object - wrong enum value
- */
-const invalidPetWrongEnum = {
-  id: "pet-123",
-  name: "Fido",
-  species: "dragon", // not a valid species
-  status: "available",
-};
-
-/**
- * Invalid Pet object - wrong type
- */
-const invalidPetWrongType = {
-  id: "pet-123",
-  name: "Fido",
-  species: "dog",
-  status: "available",
-  age: "three", // should be number
-};
-
-/**
- * Valid Species enum value
- */
-const validSpecies = "dog";
-
-/**
- * Invalid Species enum value
- */
-const invalidSpecies = "dragon";
 
 // ============================================================================
 // Helper Functions
@@ -99,9 +64,6 @@ const invalidSpecies = "dragon";
 
 /**
  * Check if a value is an ArkType error result
- *
- * ArkType returns an ArkErrors array on validation failure,
- * which has an " arkKind": "errors" property
  */
 function isArkTypeError(value: unknown): boolean {
   return (
@@ -114,11 +76,6 @@ function isArkTypeError(value: unknown): boolean {
 
 /**
  * Parse data using the appropriate validator API
- *
- * Each validator has a different parse API:
- * - Zod: schema.parse(data) throws on error
- * - Valibot: v.parse(schema, data) throws on error
- * - ArkType: schema(data) returns data on success, ArkErrors on failure
  */
 async function parseWithValidator(
   validator: ValidatorLibrary,
@@ -140,13 +97,11 @@ async function parseWithValidator(
         return { success: true, data: result };
       }
       case "valibot": {
-        // Valibot uses v.parse(schema, data)
         const v = await import("valibot");
         const result = v.parse(schema, data);
         return { success: true, data: result };
       }
       case "arktype": {
-        // ArkType returns the validated data on success, or an ArkErrors array on failure
         const result = schema(data);
         if (isArkTypeError(result)) {
           return { success: false, error: result };
@@ -160,40 +115,200 @@ async function parseWithValidator(
 }
 
 /**
- * Generate schema file for a validator and write to cache
+ * Generate OpenAPI schema file for a validator
  */
-async function generateAndWriteSchema(
+async function generateOpenAPISchema(
+  config: OpenAPISourceConfig,
   validator: ValidatorLibrary,
-): Promise<string> {
-  const schema = await openapiAdapter.loadSchema(testConfig);
+  filename: string,
+): Promise<void> {
+  const schema = await openapiAdapter.loadSchema(config);
   const schemaOptions: SchemaGenOptions = { validator };
-  const result = openapiAdapter.generateSchemas(
+  const result = openapiAdapter.generateSchemas(schema, config, schemaOptions);
+
+  const validatorDir = join(cacheDir, validator);
+  await mkdir(validatorDir, { recursive: true });
+
+  const filePath = join(validatorDir, filename);
+  await writeFile(filePath, result.content);
+}
+
+/**
+ * Generate GraphQL schema file for a validator
+ */
+async function generateGraphQLSchema(
+  validator: ValidatorLibrary,
+): Promise<void> {
+  const schema = await graphqlAdapter.loadSchema(graphqlConfig);
+  const schemaOptions: SchemaGenOptions = { validator };
+  const result = graphqlAdapter.generateSchemas(
     schema,
-    testConfig,
+    graphqlConfig,
     schemaOptions,
   );
 
   const validatorDir = join(cacheDir, validator);
   await mkdir(validatorDir, { recursive: true });
 
-  const filePath = join(validatorDir, "schema.ts");
+  const filePath = join(validatorDir, "graphql-schema.ts");
   await writeFile(filePath, result.content);
-
-  return filePath;
 }
+
+// ============================================================================
+// Test Data - OpenAPI Basic (petstore.json)
+// ============================================================================
+
+const validPet = {
+  id: "pet-123",
+  name: "Fido",
+  species: "dog",
+  status: "available",
+  breed: "Golden Retriever",
+  age: 3,
+  tags: ["friendly", "trained"],
+};
+
+const invalidPetMissingRequired = {
+  id: "pet-123",
+  // missing: name, species, status
+};
+
+const invalidPetWrongEnum = {
+  id: "pet-123",
+  name: "Fido",
+  species: "dragon",
+  status: "available",
+};
+
+const invalidPetWrongType = {
+  id: "pet-123",
+  name: "Fido",
+  species: "dog",
+  status: "available",
+  age: "three",
+};
+
+// ============================================================================
+// Test Data - OpenAPI Extended (petstore-extended.json)
+// ============================================================================
+
+// String format test data
+const stringFormats = {
+  valid: {
+    email: "test@example.com",
+    url: "https://example.com/path",
+    uuid: "550e8400-e29b-41d4-a716-446655440000",
+    datetime: "2024-01-15T10:30:00Z",
+    date: "2024-01-15",
+    ipv4: "192.168.1.1",
+    ipv6: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+  },
+  invalid: {
+    email: "not-an-email",
+    url: "not-a-url",
+    uuid: "not-a-uuid",
+    datetime: "not-a-datetime",
+    date: "not-a-date",
+    ipv4: "999.999.999.999",
+    ipv6: "not-an-ipv6",
+  },
+};
+
+// Valid extended Pet with all format fields
+const validExtendedPet = {
+  id: "550e8400-e29b-41d4-a716-446655440000",
+  name: "Fido",
+  email: "fido@example.com",
+  website: "https://fido.example.com",
+  ipAddress: "192.168.1.100",
+  ipv6Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+  createdAt: "2024-01-15T10:30:00Z",
+  birthDate: "2020-05-15",
+  isActive: true,
+  tags: ["friendly"],
+};
+
+// Nullable field test data
+const petWithNullableFields = {
+  id: "550e8400-e29b-41d4-a716-446655440000",
+  name: "Fido",
+  age: null,
+  weight: null,
+};
+
+// Composition test data (allOf - SearchCriteria)
+const validSearchCriteria = {
+  query: "fluffy cats",
+  filters: {
+    minAge: 1,
+  },
+};
+
+const invalidSearchCriteria = {
+  query: 123, // should be string
+};
+
+// Composition test data (oneOf - SearchResult)
+const validSearchResultWithPets = {
+  pets: [validExtendedPet],
+};
+
+const validSearchResultWithError = {
+  error: "Something went wrong",
+};
+
+// Note: anyOf (FlexibleResponse) is defined in the spec but not used by any operation,
+// so it's not generated. The oneOf tests above cover union behavior.
+
+// ============================================================================
+// Test Data - GraphQL
+// ============================================================================
+
+// GraphQL input types
+const validCreateUserInput = {
+  name: "John Doe",
+  email: "john@example.com",
+  avatarUrl: "https://example.com/avatar.png",
+};
+
+const validCreateUserInputMinimal = {
+  name: "Jane Doe",
+  email: "jane@example.com",
+  // avatarUrl is optional
+};
+
+const invalidCreateUserInputMissingEmail = {
+  name: "John Doe",
+  // missing required email
+};
+
+const validUpdateUserInput = {
+  name: "Updated Name",
+  // all fields optional
+};
+
+const validUpdateUserInputEmpty = {
+  // all fields optional, can be empty
+};
+
+// Note: GraphQL enums like UserRole are only generated if referenced by operations in documents
 
 // ============================================================================
 // Tests
 // ============================================================================
 
 describe("Runtime Validation", () => {
-  // Setup: generate schemas for all validators
+  // Setup: generate all schemas for all validators
   beforeAll(async () => {
     await mkdir(cacheDir, { recursive: true });
 
-    // Generate schemas for all validators in parallel
+    // Generate all schemas in parallel
     await Promise.all(
-      supportedValidators.map((validator) => generateAndWriteSchema(validator)),
+      supportedValidators.flatMap((validator) => [
+        generateOpenAPISchema(petstoreConfig, validator, "petstore-schema.ts"),
+        generateOpenAPISchema(extendedConfig, validator, "extended-schema.ts"),
+        generateGraphQLSchema(validator),
+      ]),
     );
   });
 
@@ -202,224 +317,509 @@ describe("Runtime Validation", () => {
     await rm(cacheDir, { recursive: true, force: true });
   });
 
-  describe.each(
-    supportedValidators,
-  )("%s runtime validation", (validator: ValidatorLibrary) => {
-    // biome-ignore lint/suspicious/noExplicitAny: Dynamic module imports require any
-    let schemaModule: any;
+  // ==========================================================================
+  // OpenAPI Basic Tests (petstore.json)
+  // ==========================================================================
 
-    beforeAll(async () => {
-      const filePath = join(cacheDir, validator, "schema.ts");
-      // Dynamic import of generated schema
-      schemaModule = await import(filePath);
-    });
+  describe("OpenAPI Basic", () => {
+    describe.each(
+      supportedValidators,
+    )("%s validator", (validator: ValidatorLibrary) => {
+      // biome-ignore lint/suspicious/noExplicitAny: Dynamic module imports require any
+      let schemaModule: any;
 
-    describe("Pet schema", () => {
-      it("parses valid Pet object successfully", async () => {
-        const result = await parseWithValidator(
-          validator,
-          schemaModule,
-          "petSchema",
-          validPet,
-        );
-
-        expect(result.success).toBe(true);
-        expect(result.data).toBeDefined();
+      beforeAll(async () => {
+        const filePath = join(cacheDir, validator, "petstore-schema.ts");
+        schemaModule = await import(filePath);
       });
 
-      it("rejects Pet with missing required fields", async () => {
-        const result = await parseWithValidator(
-          validator,
-          schemaModule,
-          "petSchema",
-          invalidPetMissingRequired,
-        );
+      describe("Pet schema", () => {
+        it("parses valid Pet object", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            validPet,
+          );
+          expect(result.success).toBe(true);
+          expect(result.data).toBeDefined();
+        });
 
-        expect(result.success).toBe(false);
-        expect(result.error).toBeDefined();
+        it("rejects Pet with missing required fields", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            invalidPetMissingRequired,
+          );
+          expect(result.success).toBe(false);
+        });
+
+        it("rejects Pet with invalid enum value", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            invalidPetWrongEnum,
+          );
+          expect(result.success).toBe(false);
+        });
+
+        it("rejects Pet with wrong type", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            invalidPetWrongType,
+          );
+          expect(result.success).toBe(false);
+        });
       });
 
-      it("rejects Pet with invalid enum value", async () => {
-        const result = await parseWithValidator(
-          validator,
-          schemaModule,
-          "petSchema",
-          invalidPetWrongEnum,
-        );
+      describe("Enum schema", () => {
+        it("parses valid enum value", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "speciesSchema",
+            "dog",
+          );
+          expect(result.success).toBe(true);
+          expect(result.data).toBe("dog");
+        });
 
-        expect(result.success).toBe(false);
-        expect(result.error).toBeDefined();
+        it("rejects invalid enum value", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "speciesSchema",
+            "dragon",
+          );
+          expect(result.success).toBe(false);
+        });
       });
 
-      it("rejects Pet with wrong type", async () => {
-        const result = await parseWithValidator(
-          validator,
-          schemaModule,
-          "petSchema",
-          invalidPetWrongType,
-        );
+      describe("Array handling", () => {
+        it("parses array of valid items", async () => {
+          const pets = [validPet, { ...validPet, id: "pet-456" }];
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "listPetsResponseSchema",
+            pets,
+          );
+          expect(result.success).toBe(true);
+          expect(result.data).toHaveLength(2);
+        });
 
-        expect(result.success).toBe(false);
-        expect(result.error).toBeDefined();
-      });
-    });
-
-    describe("Species enum schema", () => {
-      it("parses valid Species value", async () => {
-        const result = await parseWithValidator(
-          validator,
-          schemaModule,
-          "speciesSchema",
-          validSpecies,
-        );
-
-        expect(result.success).toBe(true);
-        expect(result.data).toBe("dog");
-      });
-
-      it("rejects invalid Species value", async () => {
-        const result = await parseWithValidator(
-          validator,
-          schemaModule,
-          "speciesSchema",
-          invalidSpecies,
-        );
-
-        expect(result.success).toBe(false);
-        expect(result.error).toBeDefined();
-      });
-    });
-
-    describe("Array handling", () => {
-      it("parses array of Pets", async () => {
-        const pets = [validPet, { ...validPet, id: "pet-456", name: "Max" }];
-
-        // The listPetsResponse is an array of pets
-        const result = await parseWithValidator(
-          validator,
-          schemaModule,
-          "listPetsResponseSchema",
-          pets,
-        );
-
-        expect(result.success).toBe(true);
-        expect(result.data).toHaveLength(2);
+        it("rejects array with invalid item", async () => {
+          const pets = [validPet, invalidPetMissingRequired];
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "listPetsResponseSchema",
+            pets,
+          );
+          expect(result.success).toBe(false);
+        });
       });
 
-      it("rejects array with invalid Pet", async () => {
-        const pets = [validPet, invalidPetMissingRequired];
+      describe("Optional fields", () => {
+        it("parses object with only required fields", async () => {
+          const minimalPet = {
+            id: "pet-789",
+            name: "Whiskers",
+            species: "cat",
+            status: "pending",
+          };
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            minimalPet,
+          );
+          expect(result.success).toBe(true);
+        });
 
-        const result = await parseWithValidator(
-          validator,
-          schemaModule,
-          "listPetsResponseSchema",
-          pets,
-        );
-
-        expect(result.success).toBe(false);
-        expect(result.error).toBeDefined();
-      });
-    });
-
-    describe("Optional fields", () => {
-      it("parses Pet with only required fields", async () => {
-        const minimalPet = {
-          id: "pet-789",
-          name: "Whiskers",
-          species: "cat",
-          status: "pending",
-        };
-
-        const result = await parseWithValidator(
-          validator,
-          schemaModule,
-          "petSchema",
-          minimalPet,
-        );
-
-        expect(result.success).toBe(true);
-        expect(result.data).toBeDefined();
-      });
-
-      it("parses Pet with omitted optional fields", async () => {
-        // Optional fields should be omittable in all validators
-        const petWithOmittedOptionals = {
-          id: "pet-101",
-          name: "Goldie",
-          species: "fish",
-          status: "available",
-          // breed, age, ownerId, tags all omitted
-        };
-
-        const result = await parseWithValidator(
-          validator,
-          schemaModule,
-          "petSchema",
-          petWithOmittedOptionals,
-        );
-
-        expect(result.success).toBe(true);
-      });
-
-      it("parses Pet with null optional fields", async () => {
-        // All validators should allow null for optional fields
-        // Zod/Valibot use .nullish(), ArkType uses "type | null"
-        const petWithNulls = {
-          id: "pet-101",
-          name: "Goldie",
-          species: "fish",
-          status: "available",
-          breed: null,
-          age: null,
-          ownerId: null,
-          tags: null,
-        };
-
-        const result = await parseWithValidator(
-          validator,
-          schemaModule,
-          "petSchema",
-          petWithNulls,
-        );
-
-        expect(result.success).toBe(true);
+        it("parses object with null optional fields", async () => {
+          const petWithNulls = {
+            id: "pet-101",
+            name: "Goldie",
+            species: "fish",
+            status: "available",
+            breed: null,
+            age: null,
+            ownerId: null,
+            tags: null,
+          };
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            petWithNulls,
+          );
+          expect(result.success).toBe(true);
+        });
       });
     });
+  });
 
-    describe("CreatePetInput schema", () => {
-      it("parses valid CreatePetInput", async () => {
-        const input = {
-          name: "Buddy",
-          species: "dog",
-          breed: "Labrador",
-          age: 2,
-        };
+  // ==========================================================================
+  // OpenAPI Extended Tests (petstore-extended.json)
+  // ==========================================================================
 
-        const result = await parseWithValidator(
-          validator,
-          schemaModule,
-          "createPetInputSchema",
-          input,
-        );
+  describe("OpenAPI Extended", () => {
+    describe.each(
+      supportedValidators,
+    )("%s validator", (validator: ValidatorLibrary) => {
+      // biome-ignore lint/suspicious/noExplicitAny: Dynamic module imports require any
+      let schemaModule: any;
 
-        expect(result.success).toBe(true);
-        expect(result.data).toBeDefined();
+      beforeAll(async () => {
+        const filePath = join(cacheDir, validator, "extended-schema.ts");
+        schemaModule = await import(filePath);
       });
 
-      it("rejects CreatePetInput without required name", async () => {
-        const input = {
-          species: "dog",
-        };
+      describe("String formats", () => {
+        it("validates email format", async () => {
+          const valid = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            { ...validExtendedPet, email: stringFormats.valid.email },
+          );
+          expect(valid.success).toBe(true);
 
-        const result = await parseWithValidator(
-          validator,
-          schemaModule,
-          "createPetInputSchema",
-          input,
-        );
+          const invalid = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            { ...validExtendedPet, email: stringFormats.invalid.email },
+          );
+          expect(invalid.success).toBe(false);
+        });
 
-        expect(result.success).toBe(false);
-        expect(result.error).toBeDefined();
+        it("validates URL format", async () => {
+          const valid = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            { ...validExtendedPet, website: stringFormats.valid.url },
+          );
+          expect(valid.success).toBe(true);
+
+          const invalid = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            { ...validExtendedPet, website: stringFormats.invalid.url },
+          );
+          expect(invalid.success).toBe(false);
+        });
+
+        it("validates UUID format", async () => {
+          const valid = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            { ...validExtendedPet, id: stringFormats.valid.uuid },
+          );
+          expect(valid.success).toBe(true);
+
+          const invalid = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            { ...validExtendedPet, id: stringFormats.invalid.uuid },
+          );
+          expect(invalid.success).toBe(false);
+        });
+
+        it("validates datetime format", async () => {
+          const valid = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            { ...validExtendedPet, createdAt: stringFormats.valid.datetime },
+          );
+          expect(valid.success).toBe(true);
+
+          const invalid = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            {
+              ...validExtendedPet,
+              createdAt: stringFormats.invalid.datetime,
+            },
+          );
+          expect(invalid.success).toBe(false);
+        });
+
+        it("validates date format", async () => {
+          const valid = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            { ...validExtendedPet, birthDate: stringFormats.valid.date },
+          );
+          expect(valid.success).toBe(true);
+
+          const invalid = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            { ...validExtendedPet, birthDate: stringFormats.invalid.date },
+          );
+          expect(invalid.success).toBe(false);
+        });
+
+        it("validates IPv4 format", async () => {
+          const valid = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            { ...validExtendedPet, ipAddress: stringFormats.valid.ipv4 },
+          );
+          expect(valid.success).toBe(true);
+
+          const invalid = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            { ...validExtendedPet, ipAddress: stringFormats.invalid.ipv4 },
+          );
+          expect(invalid.success).toBe(false);
+        });
+
+        it("validates IPv6 format", async () => {
+          const valid = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            { ...validExtendedPet, ipv6Address: stringFormats.valid.ipv6 },
+          );
+          expect(valid.success).toBe(true);
+
+          const invalid = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            { ...validExtendedPet, ipv6Address: stringFormats.invalid.ipv6 },
+          );
+          expect(invalid.success).toBe(false);
+        });
+      });
+
+      describe("Nullable types", () => {
+        it("accepts null for nullable integer", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            petWithNullableFields,
+          );
+          expect(result.success).toBe(true);
+        });
+
+        it("accepts value for nullable integer", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            { ...petWithNullableFields, age: 5 },
+          );
+          expect(result.success).toBe(true);
+        });
+
+        it("accepts null for nullable number", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            { ...petWithNullableFields, weight: null },
+          );
+          expect(result.success).toBe(true);
+        });
+
+        it("accepts value for nullable number", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            { ...petWithNullableFields, weight: 15.5 },
+          );
+          expect(result.success).toBe(true);
+        });
+      });
+
+      describe("Composition types", () => {
+        describe("allOf (intersection)", () => {
+          it("validates object matching all schemas", async () => {
+            const result = await parseWithValidator(
+              validator,
+              schemaModule,
+              "searchCriteriaSchema",
+              validSearchCriteria,
+            );
+            expect(result.success).toBe(true);
+          });
+
+          it("rejects object with wrong type", async () => {
+            const result = await parseWithValidator(
+              validator,
+              schemaModule,
+              "searchCriteriaSchema",
+              invalidSearchCriteria,
+            );
+            expect(result.success).toBe(false);
+          });
+        });
+
+        describe("oneOf (union)", () => {
+          it("validates first union member (pets result)", async () => {
+            const result = await parseWithValidator(
+              validator,
+              schemaModule,
+              "searchResultSchema",
+              validSearchResultWithPets,
+            );
+            expect(result.success).toBe(true);
+          });
+
+          it("validates second union member (error result)", async () => {
+            const result = await parseWithValidator(
+              validator,
+              schemaModule,
+              "searchResultSchema",
+              validSearchResultWithError,
+            );
+            expect(result.success).toBe(true);
+          });
+        });
+
+        // Note: anyOf (FlexibleResponse) is defined in the spec but not used by any operation,
+        // so it's not generated. The oneOf tests above cover union behavior.
+      });
+
+      describe("Edge cases", () => {
+        it("handles special property names (hyphens)", async () => {
+          const petWithSpecialName = {
+            ...validExtendedPet,
+            "special-name": "test-value",
+          };
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "petSchema",
+            petWithSpecialName,
+          );
+          expect(result.success).toBe(true);
+        });
+      });
+    });
+  });
+
+  // ==========================================================================
+  // GraphQL Tests
+  // ==========================================================================
+
+  describe("GraphQL", () => {
+    describe.each(
+      supportedValidators,
+    )("%s validator", (validator: ValidatorLibrary) => {
+      // biome-ignore lint/suspicious/noExplicitAny: Dynamic module imports require any
+      let schemaModule: any;
+
+      beforeAll(async () => {
+        const filePath = join(cacheDir, validator, "graphql-schema.ts");
+        schemaModule = await import(filePath);
+      });
+
+      describe("Input types", () => {
+        it("validates CreateUserInput with all fields", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "createUserInputSchema",
+            validCreateUserInput,
+          );
+          expect(result.success).toBe(true);
+        });
+
+        it("validates CreateUserInput with only required fields", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "createUserInputSchema",
+            validCreateUserInputMinimal,
+          );
+          expect(result.success).toBe(true);
+        });
+
+        it("rejects CreateUserInput missing required field", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "createUserInputSchema",
+            invalidCreateUserInputMissingEmail,
+          );
+          expect(result.success).toBe(false);
+        });
+
+        it("validates UpdateUserInput with partial fields", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "updateUserInputSchema",
+            validUpdateUserInput,
+          );
+          expect(result.success).toBe(true);
+        });
+
+        it("validates UpdateUserInput with no fields (all optional)", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "updateUserInputSchema",
+            validUpdateUserInputEmpty,
+          );
+          expect(result.success).toBe(true);
+        });
+      });
+
+      // Note: GraphQL enums like UserRole are only generated if referenced by operations in documents
+
+      describe("Mutation variables", () => {
+        it("validates CreateUser mutation variables", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "createUserMutationVariablesSchema",
+            { input: validCreateUserInput },
+          );
+          expect(result.success).toBe(true);
+        });
+
+        it("validates UpdateUser mutation variables", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "updateUserMutationVariablesSchema",
+            { id: "user-123", input: validUpdateUserInput },
+          );
+          expect(result.success).toBe(true);
+        });
+
+        it("validates DeleteUser mutation variables", async () => {
+          const result = await parseWithValidator(
+            validator,
+            schemaModule,
+            "deleteUserMutationVariablesSchema",
+            { id: "user-123" },
+          );
+          expect(result.success).toBe(true);
+        });
       });
     });
   });

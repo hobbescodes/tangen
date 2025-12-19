@@ -165,7 +165,9 @@ function emitString(schema: StringSchemaIR): string {
     case "uuid":
       return `v.pipe(${base}, v.uuid())`;
     case "datetime":
-      return `v.pipe(${base}, v.isoDateTime())`;
+      // Use isoTimestamp for full ISO 8601 datetime with seconds and timezone
+      // isoDateTime only validates yyyy-mm-ddThh:mm format (no seconds/timezone)
+      return `v.pipe(${base}, v.isoTimestamp())`;
     case "date":
       return `v.pipe(${base}, v.isoDate())`;
     case "time":

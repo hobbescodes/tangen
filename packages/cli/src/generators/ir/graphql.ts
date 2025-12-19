@@ -18,7 +18,6 @@ import {
 
 import {
   createNamedSchema,
-  getSafePropertyName,
   toFragmentTypeName,
   toMutationResponseTypeName,
   toMutationVariablesTypeName,
@@ -607,12 +606,13 @@ function generateInputTypeSchema(
   const fields = inputType.getFields();
   const properties: Record<string, ObjectPropertyIR> = {};
 
+  // Note: We store the original field name in the IR. The emitter is responsible
+  // for applying getSafePropertyName() at code generation time.
   for (const field of Object.values(fields)) {
     const ir = graphqlInputTypeToIR(field.type, ctx);
     const isRequired = isNonNullType(field.type);
-    const safeName = getSafePropertyName(field.name);
 
-    properties[safeName === field.name ? field.name : safeName] = {
+    properties[field.name] = {
       schema: ir,
       required: isRequired,
     };

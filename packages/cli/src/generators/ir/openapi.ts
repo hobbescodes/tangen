@@ -7,7 +7,6 @@
 
 import {
   createNamedSchema,
-  getSafePropertyName,
   toPascalCase,
   topologicalSortSchemas,
 } from "./utils";
@@ -469,15 +468,16 @@ function getObjectIR(schema: SchemaObject, ctx: OpenAPIIRContext): SchemaIR {
   const required = new Set(schema.required || []);
 
   // Handle regular properties
+  // Note: We store the original property name in the IR. The emitter is responsible
+  // for applying getSafePropertyName() at code generation time.
   if (schema.properties) {
     for (const [propName, propSchema] of Object.entries(schema.properties)) {
       if ("$ref" in propSchema) continue;
 
       const propIR = schemaToIR(propSchema, ctx);
       const isRequired = required.has(propName);
-      const safeName = getSafePropertyName(propName);
 
-      properties[safeName === propName ? propName : safeName] = {
+      properties[propName] = {
         schema: propIR,
         required: isRequired,
       };
