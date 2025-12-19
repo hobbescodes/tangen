@@ -1,5 +1,36 @@
 # tangrams
 
+## 0.8.0
+
+### Minor Changes
+
+- 1ec2d30: **BREAKING:** Changed default output directory from `./src/generated` to `./tangrams`.
+
+  Users upgrading should either:
+
+  - Update their imports to use the new default location
+  - Explicitly set `output: "./src/generated"` in their config to maintain the previous behavior
+
+  We recommend using a `@tangrams/*` path alias in your `tsconfig.json` for cleaner imports:
+
+  ```json
+  {
+    "compilerOptions": {
+      "paths": {
+        "@tangrams/*": ["./tangrams/*"]
+      }
+    },
+    "include": ["src", "tangrams"]
+  }
+  ```
+
+### Patch Changes
+
+- c76d9d6: Fix predicate translator imports and offset access in generated db collections
+
+  - Import `LoadSubsetOptions` type from `@tanstack/db` instead of `@tanstack/query-db-collection` where it is not exported
+  - Access `offset` from the original `options` object rather than from `parseLoadSubsetOptions()` return value, which only returns `{ filters, sorts, limit }`
+
 ## 0.7.0
 
 ### Minor Changes
