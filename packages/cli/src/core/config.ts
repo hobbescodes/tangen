@@ -305,8 +305,8 @@ export type ValidatorLibrary = z.infer<typeof validatorLibrarySchema>;
  * Main tangrams configuration schema (source-centric)
  */
 export const tangramsConfigSchema = z.object({
-  /** Output directory for all generated files (default: ./src/generated) */
-  output: z.string().default("./src/generated"),
+  /** Output directory for all generated files (default: ./tangrams) */
+  output: z.string().default("./tangrams"),
   /**
    * Validation library to use for generated schemas (default: "zod")
    *

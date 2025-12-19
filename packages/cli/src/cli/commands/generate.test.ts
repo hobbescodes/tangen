@@ -14,7 +14,7 @@ describe("generate command logic", () => {
   describe("config validation", () => {
     it("validates a valid configuration", () => {
       const config = {
-        output: "./src/generated",
+        output: "./tangrams",
         sources: [
           {
             name: "graphql",
@@ -32,7 +32,7 @@ describe("generate command logic", () => {
 
     it("rejects invalid configuration", () => {
       const config = {
-        output: "./src/generated",
+        output: "./tangrams",
         sources: [
           {
             name: "graphql",
@@ -125,7 +125,7 @@ describe("generate command logic", () => {
       const result = configSchema.safeParse(config);
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.output).toBe("./src/generated");
+        expect(result.data.output).toBe("./tangrams");
       }
     });
   });
@@ -133,7 +133,7 @@ describe("generate command logic", () => {
   describe("config options", () => {
     it("accepts headers option", () => {
       const config = {
-        output: "./src/generated",
+        output: "./tangrams",
         sources: [
           {
             name: "graphql",
@@ -157,7 +157,7 @@ describe("generate command logic", () => {
 
     it("accepts scalars option", () => {
       const config = {
-        output: "./src/generated",
+        output: "./tangrams",
         sources: [
           {
             name: "graphql",
@@ -179,7 +179,7 @@ describe("generate command logic", () => {
 
     it("accepts array of document patterns", () => {
       const config = {
-        output: "./src/generated",
+        output: "./tangrams",
         sources: [
           {
             name: "graphql",
@@ -198,7 +198,7 @@ describe("generate command logic", () => {
     it("generates is array-only (no object form)", () => {
       // Object form is no longer supported - file customization is not allowed
       const config = {
-        output: "./src/generated",
+        output: "./tangrams",
         sources: [
           {
             name: "graphql",
@@ -216,7 +216,7 @@ describe("generate command logic", () => {
 
     it("accepts array form with multiple generators", () => {
       const config = {
-        output: "./src/generated",
+        output: "./tangrams",
         sources: [
           {
             name: "graphql",
@@ -247,7 +247,7 @@ describe("generate command logic", () => {
   describe("multi-source config", () => {
     it("validates multi-source config", () => {
       const config = {
-        output: "./src/generated",
+        output: "./tangrams",
         sources: [
           {
             name: "graphql",

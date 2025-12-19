@@ -1,19 +1,18 @@
-import { useForm } from "@tanstack/react-form";
-import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-
-import { updatePetFormOptions } from "@/generated/pets/form/forms";
-import { updatePet } from "@/generated/pets/functions";
+import { updatePetFormOptions } from "@tangrams/pets/form/forms";
+import { updatePet } from "@tangrams/pets/functions";
 import {
   getPetByIdQueryOptions,
   getPetsQueryOptions,
-} from "@/generated/pets/query/operations";
+} from "@tangrams/pets/query/operations";
+import { useForm } from "@tanstack/react-form";
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import type {
   PetCategory,
   PetStatus,
   UpdatePetMutationVariables,
-} from "@/generated/pets/schema";
+} from "@tangrams/pets/schema";
 
 export const Route = createFileRoute("/pets/$petId/edit")({
   loader: ({ context, params }) => {

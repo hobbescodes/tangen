@@ -1,11 +1,10 @@
-import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-
 import {
   deletePetMutationOptions,
   getPetByIdQueryOptions,
   getPetsQueryOptions,
-} from "@/generated/pets/query/operations";
+} from "@tangrams/pets/query/operations";
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/pets/$petId/")({
   loader: ({ context, params }) => {

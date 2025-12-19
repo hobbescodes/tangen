@@ -1,7 +1,6 @@
+import { listPetsQueryOptions } from "@tangrams/api/query/operations";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-
-import { listPetsQueryOptions } from "@/generated/api/query/operations";
 
 export const Route = createFileRoute("/pets/")({
   loader: ({ context }) => {

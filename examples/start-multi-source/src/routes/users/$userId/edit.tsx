@@ -1,15 +1,14 @@
+import { updateUserFormOptions } from "@tangrams/users/form/forms";
+import { updateUser } from "@tangrams/users/functions";
+import {
+  getUserQueryOptions,
+  listUsersQueryOptions,
+} from "@tangrams/users/query/operations";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { updateUserFormOptions } from "@/generated/users/form/forms";
-import { updateUser } from "@/generated/users/functions";
-import {
-  getUserQueryOptions,
-  listUsersQueryOptions,
-} from "@/generated/users/query/operations";
-
-import type { UpdateUserRequest, UserRole } from "@/generated/users/schema";
+import type { UpdateUserRequest, UserRole } from "@tangrams/users/schema";
 
 export const Route = createFileRoute("/users/$userId/edit")({
   loader: ({ context, params }) => {

@@ -1,7 +1,7 @@
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
-import type { PetCategory, PetStatus } from "@/generated/api/schema";
+import type { PetCategory, PetStatus } from "@tangrams/api/schema";
 
 export const Route = createFileRoute("/pets/new")({
   component: NewPetComponent,

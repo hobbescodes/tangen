@@ -1,11 +1,10 @@
-import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-
 import {
   deleteUserMutationOptions,
   getUserQueryOptions,
   listUsersQueryOptions,
-} from "@/generated/users/query/operations";
+} from "@tangrams/users/query/operations";
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/users/$userId/")({
   loader: ({ context, params }) => {

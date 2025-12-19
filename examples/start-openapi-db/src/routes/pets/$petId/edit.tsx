@@ -2,7 +2,7 @@ import { eq, useLiveQuery } from "@tanstack/react-db";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
-import type { PetCategory, PetStatus } from "@/generated/api/schema";
+import type { PetCategory, PetStatus } from "@tangrams/api/schema";
 
 export const Route = createFileRoute("/pets/$petId/edit")({
   component: EditPetComponent,

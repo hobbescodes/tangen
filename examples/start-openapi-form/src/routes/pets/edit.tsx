@@ -1,16 +1,15 @@
+import { updatePetFormOptions } from "@tangrams/api/form/forms";
+import { updatePet } from "@tangrams/api/functions";
+import { getPetQueryOptions } from "@tangrams/api/query/operations";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-
-import { updatePetFormOptions } from "@/generated/api/form/forms";
-import { updatePet } from "@/generated/api/functions";
-import { getPetQueryOptions } from "@/generated/api/query/operations";
 
 import type {
   PetCategory,
   PetStatus,
   UpdatePetRequest,
-} from "@/generated/api/schema";
+} from "@tangrams/api/schema";
 
 export const Route = createFileRoute("/pets/edit")({
   loader: ({ context }) => {

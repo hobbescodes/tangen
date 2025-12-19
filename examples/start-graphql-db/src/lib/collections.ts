@@ -1,4 +1,4 @@
-import { petCollectionOptions } from "@/generated/api/db/collections";
+import { petCollectionOptions } from "@tangrams/api/db/collections";
 
 import type { QueryClient } from "@tanstack/react-query";
 

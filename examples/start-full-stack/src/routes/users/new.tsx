@@ -1,9 +1,8 @@
+import { createUserFormOptions } from "@tangrams/api/form/forms";
 import { useForm } from "@tanstack/react-form";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { createUserFormOptions } from "@/generated/api/form/forms";
-
-import type { UserRole } from "@/generated/api/schema";
+import type { UserRole } from "@tangrams/api/schema";
 
 export const Route = createFileRoute("/users/new")({
   component: NewUserComponent,

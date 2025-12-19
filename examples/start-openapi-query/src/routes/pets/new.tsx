@@ -1,10 +1,9 @@
+import { createPetMutationOptions } from "@tangrams/api/query/operations";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { createPetMutationOptions } from "@/generated/api/query/operations";
-
-import type { PetCategory, PetStatus } from "@/generated/api/schema";
+import type { PetCategory, PetStatus } from "@tangrams/api/schema";
 
 export const Route = createFileRoute("/pets/new")({
   component: NewPetComponent,

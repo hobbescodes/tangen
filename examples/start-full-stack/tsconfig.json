@@ -6,7 +6,8 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@tangrams/*": ["./tangrams/*"]
     },
     "resolveJsonModule": true,
     "types": ["vite/client"],
@@ -19,5 +20,5 @@
     "noUnusedParameters": true,
     "skipLibCheck": true
   },
-  "include": ["src"]
+  "include": ["src", "tangrams"]
 }

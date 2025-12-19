@@ -18,8 +18,9 @@
     "noUncheckedSideEffectImports": true,
     "types": ["vite/client"],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@tangrams/*": ["./tangrams/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "tangrams"]
 }

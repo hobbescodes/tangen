@@ -1,18 +1,17 @@
-import { useForm } from "@tanstack/react-form";
-import { useMutation } from "@tanstack/react-query";
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-
-import { createPetFormOptions } from "@/generated/pets/form/forms";
+import { createPetFormOptions } from "@tangrams/pets/form/forms";
 import {
   createPetMutationOptions,
   getPetsQueryOptions,
-} from "@/generated/pets/query/operations";
+} from "@tangrams/pets/query/operations";
+import { useForm } from "@tanstack/react-form";
+import { useMutation } from "@tanstack/react-query";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import type {
   CreatePetMutationVariables,
   PetCategory,
   PetStatus,
-} from "@/generated/pets/schema";
+} from "@tangrams/pets/schema";
 
 export const Route = createFileRoute("/pets/new")({
   component: NewPetComponent,

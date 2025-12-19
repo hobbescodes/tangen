@@ -14,8 +14,9 @@
     "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@tangrams/*": ["./tangrams/*"]
     }
   },
-  "include": ["src/**/*", "*.config.ts"]
+  "include": ["src/**/*", "tangrams", "*.config.ts"]
 }

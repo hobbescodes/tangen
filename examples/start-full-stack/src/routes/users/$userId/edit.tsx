@@ -1,10 +1,9 @@
+import { updateUserFormOptions } from "@tangrams/api/form/forms";
 import { eq, useLiveQuery } from "@tanstack/react-db";
 import { useForm } from "@tanstack/react-form";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { updateUserFormOptions } from "@/generated/api/form/forms";
-
-import type { UpdateUserRequest, UserRole } from "@/generated/api/schema";
+import type { UpdateUserRequest, UserRole } from "@tangrams/api/schema";
 
 export const Route = createFileRoute("/users/$userId/edit")({
   component: EditUserComponent,

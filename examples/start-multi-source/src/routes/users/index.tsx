@@ -1,7 +1,6 @@
+import { listUsersQueryOptions } from "@tangrams/users/query/operations";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-
-import { listUsersQueryOptions } from "@/generated/users/query/operations";
 
 export const Route = createFileRoute("/users/")({
   loader: ({ context }) => {

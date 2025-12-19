@@ -1,14 +1,13 @@
+import { createUserFormOptions } from "@tangrams/users/form/forms";
+import {
+  createUserMutationOptions,
+  listUsersQueryOptions,
+} from "@tangrams/users/query/operations";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { createUserFormOptions } from "@/generated/users/form/forms";
-import {
-  createUserMutationOptions,
-  listUsersQueryOptions,
-} from "@/generated/users/query/operations";
-
-import type { CreateUserRequest, UserRole } from "@/generated/users/schema";
+import type { CreateUserRequest, UserRole } from "@tangrams/users/schema";
 
 export const Route = createFileRoute("/users/new")({
   component: NewUserComponent,

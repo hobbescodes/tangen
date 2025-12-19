@@ -432,7 +432,7 @@ describe("configSchema", () => {
     const result = configSchema.safeParse(config);
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.output).toBe("./src/generated");
+      expect(result.data.output).toBe("./tangrams");
     }
   });
 
@@ -598,7 +598,7 @@ describe("normalizeGenerates", () => {
 
 describe("utility functions", () => {
   const multiSourceConfig: TangramsConfig = {
-    output: "./src/generated",
+    output: "./tangrams",
     validator: "zod",
     sources: [
       {
@@ -624,7 +624,7 @@ describe("utility functions", () => {
   };
 
   const singleSourceConfig: TangramsConfig = {
-    output: "./src/generated",
+    output: "./tangrams",
     validator: "zod",
     sources: [
       {
@@ -796,7 +796,7 @@ describe("loadTangramsConfig", () => {
     const schemaConfig = graphqlSource.schema as GraphQLSchemaUrlConfig;
     expect(schemaConfig.url).toBe("http://localhost:4000/graphql");
     expect(graphqlSource.documents).toBe("./src/graphql/**/*.graphql");
-    expect(result.config.output).toBe("./src/generated");
+    expect(result.config.output).toBe("./tangrams");
     expect(result.configPath).toBe(configPath);
   });
 
@@ -847,7 +847,7 @@ describe("loadTangramsConfig", () => {
 
     const result = await loadTangramsConfig({ configPath });
 
-    expect(result.config.output).toBe("./src/generated");
+    expect(result.config.output).toBe("./tangrams");
   });
 
   it("loads config with custom output directory", async () => {

@@ -92,8 +92,8 @@ Here's a comprehensive example showing all available configuration options:
 import { defineConfig } from "tangrams"
 
 export default defineConfig({
-  // Output directory for all generated files (default: "./src/generated")
-  output: "./src/generated",
+  // Output directory for all generated files (default: "./tangrams")
+  output: "./tangrams",
 
   // Validation library for generated schemas (default: "zod")
   // Supported: "zod", "valibot", "arktype"
@@ -229,7 +229,7 @@ export default defineConfig({
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `output` | `string` | `"./src/generated"` | Output directory for all generated files |
+| `output` | `string` | `"./tangrams"` | Output directory for all generated files |
 | `validator` | `"zod" \| "valibot" \| "arktype"` | `"zod"` | Validation library for generated schemas |
 | `sources` | `SourceConfig[]` | (required) | Array of data sources (minimum 1 required) |
 
@@ -450,7 +450,7 @@ overrides: {
 Generated files are organized by source name:
 
 ```
-src/generated/
+tangrams/
 └── <source-name>/
     ├── client.ts          # API client (GraphQL or REST)
     ├── schema.ts          # Validation schemas + TypeScript types

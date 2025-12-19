@@ -1,14 +1,13 @@
+import { updatePetFormOptions } from "@tangrams/api/form/forms";
 import { eq, useLiveQuery } from "@tanstack/react-db";
 import { useForm } from "@tanstack/react-form";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-
-import { updatePetFormOptions } from "@/generated/api/form/forms";
 
 import type {
   PetCategory,
   PetStatus,
   UpdatePetRequest,
-} from "@/generated/api/schema";
+} from "@tangrams/api/schema";
 
 export const Route = createFileRoute("/pets/$petId/edit")({
   component: EditPetComponent,

@@ -1,7 +1,6 @@
+import { getPetByIdQueryOptions } from "@tangrams/api/query/operations";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-
-import { getPetByIdQueryOptions } from "@/generated/api/query/operations";
 
 export const Route = createFileRoute("/pets/$petId/")({
   loader: ({ context, params }) => {

@@ -1,9 +1,8 @@
+import { createPetFormOptions } from "@tangrams/api/form/forms";
 import { useForm } from "@tanstack/react-form";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { createPetFormOptions } from "@/generated/api/form/forms";
-
-import type { PetCategory, PetStatus } from "@/generated/api/schema";
+import type { PetCategory, PetStatus } from "@tangrams/api/schema";
 
 export const Route = createFileRoute("/pets/new")({
   component: NewPetComponent,

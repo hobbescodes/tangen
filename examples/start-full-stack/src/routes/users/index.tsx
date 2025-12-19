@@ -2,7 +2,7 @@ import { eq, useLiveQuery } from "@tanstack/react-db";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 
-import type { UserRole } from "@/generated/api/schema";
+import type { UserRole } from "@tangrams/api/schema";
 
 export const Route = createFileRoute("/users/")({
   component: UsersListComponent,

@@ -38,7 +38,7 @@ describe("init command logic", () => {
       const content = await readFile(configPath, "utf-8");
       expect(content).toContain("defineConfig");
       expect(content).toContain("sources");
-      // Output uses default value (./src/generated) so it's not in the template
+      // Output uses default value (./tangrams) so it's not in the template
     });
   });
 
