@@ -92,8 +92,10 @@ Here's a comprehensive example showing all available configuration options:
 import { defineConfig } from "tangrams"
 
 export default defineConfig({
-  // Output directory for all generated files (default: "./tangrams")
-  output: "./tangrams",
+  // Directory where the tangrams folder will be generated (default: ".")
+  // With ".", files are generated at ./tangrams/<source>/...
+  // With "./src", files are generated at ./src/tangrams/<source>/...
+  output: ".",
 
   // Validation library for generated schemas (default: "zod")
   // Supported: "zod", "valibot", "arktype"
@@ -229,7 +231,7 @@ export default defineConfig({
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `output` | `string` | `"./tangrams"` | Output directory for all generated files |
+| `output` | `string` | `"."` | Directory where the `tangrams` folder will be generated |
 | `validator` | `"zod" \| "valibot" \| "arktype"` | `"zod"` | Validation library for generated schemas |
 | `sources` | `SourceConfig[]` | (required) | Array of data sources (minimum 1 required) |
 

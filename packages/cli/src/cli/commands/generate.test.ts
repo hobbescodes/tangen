@@ -125,7 +125,7 @@ describe("generate command logic", () => {
       const result = configSchema.safeParse(config);
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.output).toBe("./tangrams");
+        expect(result.data.output).toBe(".");
       }
     });
   });
@@ -133,7 +133,7 @@ describe("generate command logic", () => {
   describe("config options", () => {
     it("accepts headers option", () => {
       const config = {
-        output: "./tangrams",
+        output: ".",
         sources: [
           {
             name: "graphql",

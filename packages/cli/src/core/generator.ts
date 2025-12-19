@@ -72,7 +72,7 @@ async function fileExists(path: string): Promise<boolean> {
  * Processes all configured sources and generates code for each
  *
  * Output structure:
- *   <output>/<source-name>/
+ *   <output>/tangrams/<source-name>/
  *     ├── client.ts          # shared client (always)
  *     ├── schema.ts          # zod schemas + inferred types (when query/form/db enabled)
  *     ├── functions.ts       # standalone fetch functions (when query/db enabled)
@@ -98,7 +98,7 @@ export async function generate(
   // Process each source
   for (const source of config.sources) {
     const generates = normalizeGenerates(source.generates);
-    const baseOutputDir = join(process.cwd(), config.output);
+    const baseOutputDir = join(process.cwd(), config.output, "tangrams");
     const sourceOutputDir = join(baseOutputDir, source.name);
 
     // Ensure source directory exists

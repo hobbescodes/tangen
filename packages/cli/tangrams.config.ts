@@ -1,7 +1,7 @@
 import { defineConfig } from "./src";
 
 export default defineConfig({
-  output: "./src/test/generated",
+  output: "./src/test",
   sources: [
     {
       name: "graphql",
