@@ -7,7 +7,7 @@
 [![pkg.pr.new](https://pkg.pr.new/badge/hobbescodes/tangrams)](https://pkg.pr.new/~/hobbescodes/tangrams)
 
 > [!WARNING]
-> This project is in **alpha** and under active development. APIs may change without notice. **Do not use in production.**
+> This project is in **alpha** and under active development. APIs may change without notice.
 
 ## Overview
 
