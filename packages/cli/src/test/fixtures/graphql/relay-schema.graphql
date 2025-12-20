@@ -1,0 +1,75 @@
+"""
+GraphQL schema with Relay-style cursor pagination.
+Used for testing schema-driven infinite query detection.
+"""
+scalar Cursor
+scalar UUID
+
+type Query {
+  """
+  List posts with Relay-style pagination
+  """
+  posts(
+    first: Int
+    after: Cursor
+    last: Int
+    before: Cursor
+    filter: PostFilter
+  ): PostConnection!
+
+  """
+  Get a single post by ID
+  """
+  post(id: UUID!): Post
+}
+
+type Mutation {
+  createPost(input: CreatePostInput!): Post!
+  updatePost(id: UUID!, input: UpdatePostInput!): Post
+  deletePost(id: UUID!): Boolean!
+}
+
+"""
+Relay-style connection for paginated Post responses
+"""
+type PostConnection {
+  edges: [PostEdge!]!
+  pageInfo: PageInfo!
+  nodes: [Post!]!
+  totalCount: Int!
+}
+
+type PostEdge {
+  node: Post!
+  cursor: Cursor!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: Cursor
+  endCursor: Cursor
+}
+
+type Post {
+  id: UUID!
+  title: String!
+  content: String
+  createdAt: String!
+}
+
+input PostFilter {
+  projectId: UUID
+  status: String
+}
+
+input CreatePostInput {
+  title: String!
+  content: String
+  projectId: UUID!
+}
+
+input UpdatePostInput {
+  title: String
+  content: String
+}

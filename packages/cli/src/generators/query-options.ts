@@ -28,11 +28,8 @@ import {
 } from "@/utils/writer";
 
 import type CodeBlockWriter from "code-block-writer";
-import type { GraphQLSchema } from "graphql";
-import type {
-  InfiniteQueryPaginationInfo,
-  PaginationResponseInfo,
-} from "@/adapters/types";
+import type { FieldNode, GraphQLSchema } from "graphql";
+import type { InfiniteQueryPaginationInfo } from "@/adapters/types";
 import type {
   InfiniteQueryOverrideConfig,
   QueryOverridesConfig,
@@ -44,8 +41,8 @@ export interface OperationsGeneratorOptions {
   typesImportPath: string;
   /** The source name to include in query/mutation keys */
   sourceName: string;
-  /** GraphQL schema for analyzing return types (for Relay connections) */
-  schema?: GraphQLSchema;
+  /** GraphQL schema for analyzing field arguments and return types */
+  schema: GraphQLSchema;
   /** Query overrides from config */
   queryOverrides?: QueryOverridesConfig;
 }
@@ -71,14 +68,57 @@ interface PaginatedQueryInfo {
 }
 
 /**
- * Analyze queries for pagination capabilities
+ * Get the first queried field from an operation's selection set
+ */
+function getFirstQueriedField(
+  operation: ParsedOperation,
+): FieldNode | undefined {
+  const selections = operation.node.selectionSet.selections;
+  for (const sel of selections) {
+    if (sel.kind === Kind.FIELD) {
+      return sel;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Map a schema argument name to the document variable name used for it.
+ *
+ * For example, if the schema field has an `after` argument and the document
+ * calls it with `posts(after: $cursor)`, this returns "cursor".
+ */
+function mapSchemaArgToVariable(
+  fieldNode: FieldNode,
+  schemaArgName: string,
+): string | undefined {
+  const arg = fieldNode.arguments?.find((a) => a.name.value === schemaArgName);
+  if (!arg) return undefined;
+
+  // The argument value should reference a variable
+  if (arg.value.kind !== Kind.VARIABLE) return undefined;
+
+  return arg.value.name.value;
+}
+
+/**
+ * Analyze queries for pagination capabilities using schema-first detection.
+ *
+ * This analyzes the schema field's arguments and return type rather than
+ * the document's variable definitions. This allows variable names to differ
+ * from schema argument names (e.g., $pageSize instead of $first).
  */
 function analyzePaginatedQueries(
   queries: ParsedOperation[],
-  schema: GraphQLSchema | undefined,
+  schema: GraphQLSchema,
   queryOverrides: QueryOverridesConfig | undefined,
-  warnings: string[],
+  _warnings: string[],
 ): PaginatedQueryInfo[] {
+  const queryType = schema.getQueryType();
+  if (!queryType) {
+    return queries.map((op) => ({ operation: op, paginationInfo: null }));
+  }
+
   return queries.map((operation) => {
     const override = queryOverrides?.operations?.[operation.name];
 
@@ -87,57 +127,68 @@ function analyzePaginatedQueries(
       return { operation, paginationInfo: null };
     }
 
-    // If user provided getNextPageParamPath, we can generate
-    if (override?.getNextPageParamPath) {
-      // Still need to detect pagination params for the pageParamName
-      const paginationParams = analyzePaginationFromVariables(operation);
-      if (paginationParams.style !== "none") {
-        const pageParamName = getPageParamNameFromVariables(
-          operation,
-          paginationParams,
-        );
-        if (pageParamName) {
-          return {
-            operation,
-            paginationInfo: {
-              params: paginationParams,
-              response: { style: "cursor" }, // Assume cursor since they provided a path
-              pageParamName,
-            },
-          };
-        }
-      }
+    // Get the first queried field from the operation
+    const fieldNode = getFirstQueriedField(operation);
+    if (!fieldNode) {
+      return { operation, paginationInfo: null };
     }
 
-    // Analyze variable definitions for pagination params
-    const paginationParams = analyzePaginationFromVariables(operation);
+    // Look up the field in the schema (use actual field name, not alias)
+    const schemaField = queryType.getFields()[fieldNode.name.value];
+    if (!schemaField) {
+      return { operation, paginationInfo: null };
+    }
+
+    // Analyze field arguments for pagination (schema-driven)
+    const paginationParams = analyzePaginationCapabilities(schemaField.args);
     if (paginationParams.style === "none") {
       return { operation, paginationInfo: null };
     }
 
-    // Get the page param name
-    const pageParamName = getPageParamNameFromVariables(
-      operation,
+    // Determine the schema's page param arg name (e.g., "after" for relay)
+    const schemaPageParamName = getGraphQLPageParamName(
       paginationParams,
+      schemaField.args,
     );
-    if (!pageParamName) {
+    if (!schemaPageParamName) {
       return { operation, paginationInfo: null };
     }
 
-    // Analyze return type for Relay connection pattern (if schema available)
-    let responseInfo: PaginationResponseInfo = { style: "none" };
-    if (schema && paginationParams.style === "relay") {
-      responseInfo = analyzeQueryReturnType(operation, schema);
+    // Map schema arg name to document variable name
+    const pageParamName = mapSchemaArgToVariable(
+      fieldNode,
+      schemaPageParamName,
+    );
+    if (!pageParamName) {
+      // The document doesn't pass this pagination argument, skip
+      return { operation, paginationInfo: null };
     }
 
-    // If we can't determine response structure, warn and skip
+    // Analyze return type for Relay connection pattern
+    let responseInfo = analyzeRelayConnection(schemaField.type);
+
+    // If Relay connection detected, prepend the response key to the paths
+    // Use alias if present, otherwise field name
+    if (responseInfo.style === "relay") {
+      const responseKey = fieldNode.alias?.value ?? fieldNode.name.value;
+      responseInfo = {
+        ...responseInfo,
+        hasMorePath: responseInfo.hasMorePath
+          ? [responseKey, ...responseInfo.hasMorePath]
+          : undefined,
+        nextCursorPath: responseInfo.nextCursorPath
+          ? [responseKey, ...responseInfo.nextCursorPath]
+          : undefined,
+      };
+    }
+
+    // If user provided getNextPageParamPath override, use cursor style
+    if (override?.getNextPageParamPath) {
+      responseInfo = { style: "cursor" };
+    }
+
+    // If we can't determine response structure and no override, skip
     if (responseInfo.style === "none" && !override?.getNextPageParamPath) {
-      warnings.push(
-        `Query "${operation.name}" has pagination arguments (${pageParamName}) ` +
-          `but return type could not be analyzed for getNextPageParam. ` +
-          `Skipping infiniteQueryOptions generation. ` +
-          `Configure 'overrides.query.operations.${operation.name}.getNextPageParamPath' to enable.`,
-      );
       return { operation, paginationInfo: null };
     }
 
@@ -150,90 +201,6 @@ function analyzePaginatedQueries(
       },
     };
   });
-}
-
-/**
- * Analyze variable definitions for pagination patterns
- */
-function analyzePaginationFromVariables(
-  operation: ParsedOperation,
-): ReturnType<typeof analyzePaginationCapabilities> {
-  const variableDefs = operation.node.variableDefinitions ?? [];
-
-  // Convert variable definitions to a format analyzePaginationCapabilities can use
-  const mockArgs = variableDefs.map((v) => ({
-    name: v.variable.name.value,
-    type: v.type,
-  }));
-
-  // Use the existing analysis function
-  return analyzePaginationCapabilities(mockArgs as never);
-}
-
-/**
- * Get the page param name from variable definitions
- */
-function getPageParamNameFromVariables(
-  operation: ParsedOperation,
-  paginationParams: ReturnType<typeof analyzePaginationCapabilities>,
-): string | undefined {
-  const variableDefs = operation.node.variableDefinitions ?? [];
-  const mockArgs = variableDefs.map((v) => ({
-    name: v.variable.name.value,
-  }));
-
-  return getGraphQLPageParamName(paginationParams, mockArgs as never);
-}
-
-/**
- * Analyze the return type of a query for Relay connection pattern
- */
-function analyzeQueryReturnType(
-  operation: ParsedOperation,
-  schema: GraphQLSchema,
-): PaginationResponseInfo {
-  // Get the query type from the schema
-  const queryType = schema.getQueryType();
-  if (!queryType) {
-    return { style: "none" };
-  }
-
-  // Get the first selection from the operation (the actual query field)
-  const selections = operation.node.selectionSet.selections;
-  if (selections.length === 0) {
-    return { style: "none" };
-  }
-
-  // Find the field being queried
-  const firstSelection = selections[0];
-  if (!firstSelection || firstSelection.kind !== Kind.FIELD) {
-    return { style: "none" };
-  }
-
-  const fieldName = firstSelection.name.value;
-  const field = queryType.getFields()[fieldName];
-  if (!field) {
-    return { style: "none" };
-  }
-
-  // Analyze the return type for Relay connection pattern
-  const relayInfo = analyzeRelayConnection(field.type);
-
-  // If Relay connection detected, add the field name to the paths
-  if (relayInfo.style === "relay") {
-    return {
-      ...relayInfo,
-      // Prepend the field name to the paths since the response is { fieldName: { pageInfo: ... } }
-      hasMorePath: relayInfo.hasMorePath
-        ? [fieldName, ...relayInfo.hasMorePath]
-        : undefined,
-      nextCursorPath: relayInfo.nextCursorPath
-        ? [fieldName, ...relayInfo.nextCursorPath]
-        : undefined,
-    };
-  }
-
-  return relayInfo;
 }
 
 // =============================================================================

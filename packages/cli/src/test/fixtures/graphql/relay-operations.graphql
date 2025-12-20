@@ -1,0 +1,73 @@
+# Operations for testing Relay-style cursor pagination
+# Variable names intentionally differ from schema arg names to test schema-driven detection
+
+fragment PostFields on Post {
+  id
+  title
+  content
+  createdAt
+}
+
+# Variable names don't match schema arg names - should still work
+# $cursor instead of $after, $pageSize instead of $first
+query ListPosts($projectId: UUID!, $cursor: Cursor, $pageSize: Int = 10) {
+  posts(after: $cursor, first: $pageSize, filter: { projectId: $projectId }) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      ...PostFields
+    }
+    totalCount
+  }
+}
+
+# With alias - should use alias in response path
+query ListPostsWithAlias($after: Cursor, $first: Int) {
+  myPosts: posts(after: $after, first: $first) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      ...PostFields
+    }
+  }
+}
+
+# Standard variable names matching schema
+query ListPostsStandard($first: Int, $after: Cursor) {
+  posts(first: $first, after: $after) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      ...PostFields
+    }
+  }
+}
+
+# Single post query - should NOT generate infinite query
+query GetPost($id: UUID!) {
+  post(id: $id) {
+    ...PostFields
+  }
+}
+
+mutation CreatePost($input: CreatePostInput!) {
+  createPost(input: $input) {
+    ...PostFields
+  }
+}
+
+mutation UpdatePost($id: UUID!, $input: UpdatePostInput!) {
+  updatePost(id: $id, input: $input) {
+    ...PostFields
+  }
+}
+
+mutation DeletePost($id: UUID!) {
+  deletePost(id: $id)
+}
