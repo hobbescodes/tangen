@@ -18,8 +18,6 @@ tangrams is a comprehensive code generation tool for the TanStack ecosystem. It 
 - **TanStack Query** - Generate type-safe `queryOptions`, `infiniteQueryOptions`, and `mutationOptions`
 - **TanStack Form** - Generate type-safe `formOptions` with validation schemas
 - **TanStack DB** - Generate `queryCollectionOptions` with auto-detected CRUD operations
-- **Standalone Functions** - Generate standalone async fetch functions
-- **TanStack Pacer** - Generate rate-limited operation wrappers _(coming soon)_
 
 ## Supported Data Sources
 
@@ -163,7 +161,10 @@ Interactive commands in watch mode:
 
 ## Roadmap
 
-- TanStack Pacer integration
+- Multi-Framework Code Generation
+- TanStack DB - Electic Collections
+- TanStack DB - LocalStorage Collections
+- TBD
 
 ## Contributing
 
