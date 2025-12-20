@@ -1157,4 +1157,155 @@ describe("GraphQL Collection Discovery", () => {
       expect(result.content).not.toContain('syncMode: "on-demand"');
     });
   });
+
+  describe("custom scalar validation", () => {
+    const scalarTestConfig: GraphQLSourceConfig = {
+      name: "test-api",
+      type: "graphql",
+      schema: { url: "http://localhost:4000/graphql" },
+      documents: "./src/**/*.graphql",
+      generates: ["query"],
+    };
+
+    const schemaWithCustomScalar = buildSchema(`
+      scalar Cursor
+      scalar DateTime
+
+      type Query {
+        items(after: Cursor): [Item!]!
+      }
+
+      type Item {
+        id: ID!
+        createdAt: DateTime!
+      }
+    `);
+
+    const testSchemaWithScalar: GraphQLAdapterSchema = {
+      schema: schemaWithCustomScalar,
+      documents: {
+        operations: [
+          {
+            name: "ListItems",
+            operation: "query",
+            node: {
+              kind: Kind.OPERATION_DEFINITION,
+              operation: OperationTypeNode.QUERY,
+              name: { kind: Kind.NAME, value: "ListItems" },
+              variableDefinitions: [
+                {
+                  kind: Kind.VARIABLE_DEFINITION,
+                  variable: {
+                    kind: Kind.VARIABLE,
+                    name: { kind: Kind.NAME, value: "after" },
+                  },
+                  type: {
+                    kind: Kind.NAMED_TYPE,
+                    name: { kind: Kind.NAME, value: "Cursor" },
+                  },
+                },
+              ],
+              selectionSet: {
+                kind: Kind.SELECTION_SET,
+                selections: [],
+              },
+            },
+            document:
+              "query ListItems($after: Cursor) { items(after: $after) { id } }",
+          },
+        ],
+        fragments: [],
+      },
+    };
+
+    it("accepts valid zod scalar expressions", () => {
+      expect(() =>
+        graphqlAdapter.generateSchemas(testSchemaWithScalar, scalarTestConfig, {
+          validator: "zod",
+          scalars: { Cursor: "z.string()", DateTime: "z.string()" },
+        }),
+      ).not.toThrow();
+    });
+
+    it("accepts valid valibot scalar expressions", () => {
+      expect(() =>
+        graphqlAdapter.generateSchemas(testSchemaWithScalar, scalarTestConfig, {
+          validator: "valibot",
+          scalars: { Cursor: "v.string()", DateTime: "v.string()" },
+        }),
+      ).not.toThrow();
+    });
+
+    it("accepts valid arktype scalar expressions", () => {
+      expect(() =>
+        graphqlAdapter.generateSchemas(testSchemaWithScalar, scalarTestConfig, {
+          validator: "arktype",
+          scalars: { Cursor: 'type("string")', DateTime: 'type("string")' },
+        }),
+      ).not.toThrow();
+    });
+
+    it("throws error for invalid zod scalar with helpful message", () => {
+      expect(() =>
+        graphqlAdapter.generateSchemas(testSchemaWithScalar, scalarTestConfig, {
+          validator: "zod",
+          scalars: { Cursor: "string" },
+        }),
+      ).toThrow(/Invalid scalar mapping for "Cursor": received "string"/);
+    });
+
+    it("suggests correct zod expression in error message", () => {
+      expect(() =>
+        graphqlAdapter.generateSchemas(testSchemaWithScalar, scalarTestConfig, {
+          validator: "zod",
+          scalars: { Cursor: "string" },
+        }),
+      ).toThrow(/Did you mean "z\.string\(\)"\?/);
+    });
+
+    it("throws error for invalid valibot scalar", () => {
+      expect(() =>
+        graphqlAdapter.generateSchemas(testSchemaWithScalar, scalarTestConfig, {
+          validator: "valibot",
+          scalars: { Cursor: "string" },
+        }),
+      ).toThrow(/Invalid scalar mapping for "Cursor": received "string"/);
+    });
+
+    it("suggests correct valibot expression in error message", () => {
+      expect(() =>
+        graphqlAdapter.generateSchemas(testSchemaWithScalar, scalarTestConfig, {
+          validator: "valibot",
+          scalars: { Cursor: "string" },
+        }),
+      ).toThrow(/Did you mean "v\.string\(\)"\?/);
+    });
+
+    it("throws error for invalid arktype scalar", () => {
+      expect(() =>
+        graphqlAdapter.generateSchemas(testSchemaWithScalar, scalarTestConfig, {
+          validator: "arktype",
+          scalars: { Cursor: "string" },
+        }),
+      ).toThrow(/Invalid scalar mapping for "Cursor": received "string"/);
+    });
+
+    it("suggests correct arktype expression in error message", () => {
+      expect(() =>
+        graphqlAdapter.generateSchemas(testSchemaWithScalar, scalarTestConfig, {
+          validator: "arktype",
+          scalars: { Cursor: "string" },
+        }),
+      ).toThrow(/Did you mean "type\("string"\)"\?/);
+    });
+
+    it("includes validator name in error message", () => {
+      expect(() =>
+        graphqlAdapter.generateSchemas(testSchemaWithScalar, scalarTestConfig, {
+          validator: "zod",
+          scalars: { Cursor: "Date" },
+        }),
+      ).toThrow(/For zod, scalar values must be valid zod expressions/);
+    });
+  });
 });
