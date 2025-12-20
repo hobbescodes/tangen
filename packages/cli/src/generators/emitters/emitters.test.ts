@@ -1,12 +1,13 @@
 /**
  * Emitter tests
  *
- * Tests for all validator emitters (Zod, Valibot, ArkType)
+ * Tests for all validator emitters (Zod, Valibot, ArkType, Effect)
  */
 
 import { describe, expect, it } from "vitest";
 
 import { arktypeEmitter } from "./arktype";
+import { effectEmitter } from "./effect";
 import { getEmitter, isValidatorLibrary, supportedValidators } from "./index";
 import { valibotEmitter } from "./valibot";
 import { zodEmitter } from "./zod";
@@ -46,6 +47,11 @@ describe("Emitter Registry", () => {
       expect(emitter.library).toBe("arktype");
     });
 
+    it("returns the Effect emitter for 'effect'", () => {
+      const emitter = getEmitter("effect");
+      expect(emitter.library).toBe("effect");
+    });
+
     it("throws for unknown library", () => {
       expect(() => getEmitter("unknown" as never)).toThrow(
         "Unknown validator library",
@@ -58,6 +64,7 @@ describe("Emitter Registry", () => {
       expect(isValidatorLibrary("zod")).toBe(true);
       expect(isValidatorLibrary("valibot")).toBe(true);
       expect(isValidatorLibrary("arktype")).toBe(true);
+      expect(isValidatorLibrary("effect")).toBe(true);
     });
 
     it("returns false for invalid libraries", () => {
@@ -67,11 +74,12 @@ describe("Emitter Registry", () => {
   });
 
   describe("supportedValidators", () => {
-    it("contains all three validators", () => {
+    it("contains all four validators", () => {
       expect(supportedValidators).toContain("zod");
       expect(supportedValidators).toContain("valibot");
       expect(supportedValidators).toContain("arktype");
-      expect(supportedValidators).toHaveLength(3);
+      expect(supportedValidators).toContain("effect");
+      expect(supportedValidators).toHaveLength(4);
     });
   });
 });
@@ -449,6 +457,174 @@ describe("ArkType Emitter", () => {
       const result = arktypeEmitter.emit(schemas);
 
       expect(result.content).toContain('type("string | number")');
+    });
+  });
+});
+
+// ============================================================================
+// Effect Emitter Tests
+// ============================================================================
+
+describe("Effect Emitter", () => {
+  describe("getImportStatement", () => {
+    it("returns correct Effect import", () => {
+      expect(effectEmitter.getImportStatement()).toBe(
+        'import { Schema } from "effect"',
+      );
+    });
+  });
+
+  describe("getTypeInference", () => {
+    it("returns correct type inference", () => {
+      expect(effectEmitter.getTypeInference("petSchema", "Pet")).toBe(
+        "export type Pet = typeof petSchema.Type",
+      );
+    });
+  });
+
+  describe("emit", () => {
+    it("emits string schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("Name", { kind: "string" }),
+      ];
+      const result = effectEmitter.emit(schemas);
+
+      expect(result.content).toContain("Schema.String");
+      expect(result.content).toContain("export const nameSchema");
+      expect(result.content).toContain("export type Name");
+    });
+
+    it("emits string with email format using pattern", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("Email", { kind: "string", format: "email" }),
+      ];
+      const result = effectEmitter.emit(schemas);
+
+      expect(result.content).toContain("Schema.String.pipe(Schema.pattern(");
+    });
+
+    it("emits string with uuid format using built-in", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("Id", { kind: "string", format: "uuid" }),
+      ];
+      const result = effectEmitter.emit(schemas);
+
+      expect(result.content).toContain("Schema.UUID");
+    });
+
+    it("emits number schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("Age", { kind: "number" }),
+      ];
+      const result = effectEmitter.emit(schemas);
+
+      expect(result.content).toContain("Schema.Number");
+    });
+
+    it("emits integer schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("Count", { kind: "number", integer: true }),
+      ];
+      const result = effectEmitter.emit(schemas);
+
+      expect(result.content).toContain("Schema.Number.pipe(Schema.int())");
+    });
+
+    it("emits boolean schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("Active", { kind: "boolean" }),
+      ];
+      const result = effectEmitter.emit(schemas);
+
+      expect(result.content).toContain("Schema.Boolean");
+    });
+
+    it("emits enum schema using union of literals", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("Status", {
+          kind: "enum",
+          values: ["active", "inactive"],
+        }),
+      ];
+      const result = effectEmitter.emit(schemas);
+
+      expect(result.content).toContain(
+        'Schema.Union(Schema.Literal("active"), Schema.Literal("inactive"))',
+      );
+    });
+
+    it("emits array schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("Tags", {
+          kind: "array",
+          items: { kind: "string" },
+        }),
+      ];
+      const result = effectEmitter.emit(schemas);
+
+      expect(result.content).toContain("Schema.Array(Schema.String)");
+    });
+
+    it("emits object schema with required and optional fields", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("User", {
+          kind: "object",
+          properties: {
+            id: { schema: { kind: "string" }, required: true },
+            name: { schema: { kind: "string" }, required: true },
+            email: { schema: { kind: "string" }, required: false },
+          },
+        }),
+      ];
+      const result = effectEmitter.emit(schemas);
+
+      expect(result.content).toContain("Schema.Struct({");
+      expect(result.content).toContain("id: Schema.String");
+      expect(result.content).toContain("name: Schema.String");
+      expect(result.content).toContain(
+        "email: Schema.NullishOr(Schema.String)",
+      );
+    });
+
+    it("emits union schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("StringOrNumber", {
+          kind: "union",
+          members: [{ kind: "string" }, { kind: "number" }],
+        }),
+      ];
+      const result = effectEmitter.emit(schemas);
+
+      expect(result.content).toContain(
+        "Schema.Union(Schema.String, Schema.Number)",
+      );
+    });
+
+    it("emits nullable union as Schema.NullOr", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("NullableString", {
+          kind: "union",
+          members: [{ kind: "string" }, { kind: "null" }],
+        }),
+      ];
+      const result = effectEmitter.emit(schemas);
+
+      expect(result.content).toContain("Schema.NullOr(Schema.String)");
+    });
+
+    it("emits ref schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("Status", { kind: "enum", values: ["a", "b"] }),
+        createNamedSchema("Item", {
+          kind: "object",
+          properties: {
+            status: { schema: { kind: "ref", name: "Status" }, required: true },
+          },
+        }),
+      ];
+      const result = effectEmitter.emit(schemas);
+
+      expect(result.content).toContain("status: statusSchema");
     });
   });
 });
@@ -965,6 +1141,225 @@ describe("Emitter Edge Cases", () => {
       ];
       const result = arktypeEmitter.emit(schemas);
       expect(result.content).toContain("type({");
+    });
+  });
+
+  describe("Effect Emitter Edge Cases", () => {
+    it("emits bigint schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("BigNumber", { kind: "bigint" }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain("Schema.BigInt");
+    });
+
+    it("emits null schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("NullValue", { kind: "null" }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain("Schema.Null");
+    });
+
+    it("emits undefined schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("UndefinedValue", { kind: "undefined" }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain("Schema.Undefined");
+    });
+
+    it("emits unknown schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("AnyValue", { kind: "unknown" }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain("Schema.Unknown");
+    });
+
+    it("emits never schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("NeverValue", { kind: "never" }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain("Schema.Never");
+    });
+
+    it("emits date schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("DateValue", { kind: "date" }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain("Schema.Date");
+    });
+
+    it("emits literal string schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("Active", { kind: "literal", value: "active" }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain('Schema.Literal("active")');
+    });
+
+    it("emits literal number schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("FortyTwo", { kind: "literal", value: 42 }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain("Schema.Literal(42)");
+    });
+
+    it("emits literal boolean schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("True", { kind: "literal", value: true }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain("Schema.Literal(true)");
+    });
+
+    it("emits tuple schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("Point", {
+          kind: "tuple",
+          items: [{ kind: "number" }, { kind: "number" }],
+        }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain(
+        "Schema.Tuple(Schema.Number, Schema.Number)",
+      );
+    });
+
+    it("emits record schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("StringMap", {
+          kind: "record",
+          keyType: { kind: "string" },
+          valueType: { kind: "number" },
+        }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain(
+        "Schema.Record({ key: Schema.String, value: Schema.Number })",
+      );
+    });
+
+    it("emits optional union as Schema.UndefinedOr", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("OptionalString", {
+          kind: "union",
+          members: [{ kind: "string" }, { kind: "undefined" }],
+        }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain("Schema.UndefinedOr(Schema.String)");
+    });
+
+    it("emits nullish union as Schema.NullishOr", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("NullishString", {
+          kind: "union",
+          members: [
+            { kind: "string" },
+            { kind: "null" },
+            { kind: "undefined" },
+          ],
+        }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain("Schema.NullishOr(Schema.String)");
+    });
+
+    it("emits single-member union", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("SingleString", {
+          kind: "union",
+          members: [{ kind: "string" }],
+        }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain("Schema.String");
+    });
+
+    it("emits intersection schema using Schema.extend", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("Combined", {
+          kind: "intersection",
+          members: [
+            {
+              kind: "object",
+              properties: { a: { schema: { kind: "string" }, required: true } },
+            },
+            {
+              kind: "object",
+              properties: { b: { schema: { kind: "number" }, required: true } },
+            },
+          ],
+        }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain("Schema.extend(");
+    });
+
+    it("emits single-member intersection", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("Single", {
+          kind: "intersection",
+          members: [{ kind: "string" }],
+        }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain("Schema.String");
+    });
+
+    it("emits empty intersection as unknown", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("Empty", {
+          kind: "intersection",
+          members: [],
+        }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain("Schema.Unknown");
+    });
+
+    it("emits raw schema", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("Custom", {
+          kind: "raw",
+          code: "Schema.suspend(() => mySchema)",
+        }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.content).toContain("Schema.suspend(() => mySchema)");
+    });
+
+    it("emits string formats with patterns", () => {
+      const formats = [
+        "email",
+        "url",
+        "datetime",
+        "date",
+        "time",
+        "ipv4",
+        "ipv6",
+      ] as const;
+      for (const format of formats) {
+        const schemas: NamedSchemaIR[] = [
+          createNamedSchema("Test", { kind: "string", format }),
+        ];
+        const result = effectEmitter.emit(schemas);
+        // All these formats use Schema.String.pipe(Schema.pattern(...))
+        expect(result.content).toContain("Schema.String.pipe(Schema.pattern(");
+      }
+    });
+
+    it("handles unknown schema kind with warning", () => {
+      const schemas: NamedSchemaIR[] = [
+        createNamedSchema("Unknown", { kind: "unknown-kind" as never }),
+      ];
+      const result = effectEmitter.emit(schemas);
+      expect(result.warnings.length).toBeGreaterThan(0);
     });
   });
 });

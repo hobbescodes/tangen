@@ -2,8 +2,11 @@
  * TanStack Form options generator
  * Generates formOptions exports for mutations
  *
- * This generator is validator-agnostic because TanStack Form uses the
+ * This generator is mostly validator-agnostic because TanStack Form uses the
  * Standard Schema protocol, which is supported by Zod, Valibot, and ArkType.
+ *
+ * Note: Effect Schema requires special handling - schemas must be wrapped with
+ * Schema.standardSchemaV1() to be Standard Schema compliant.
  */
 
 import { createWriter, writeHeader, writeImport } from "@/utils/writer";
@@ -11,6 +14,7 @@ import { toCamelCase, toPascalCase, toSchemaName } from "./ir/utils";
 
 import type CodeBlockWriter from "code-block-writer";
 import type { FormOverridesConfig } from "@/core/config";
+import type { ValidatorLibrary } from "./emitters/types";
 
 /**
  * Derive the TypeScript type name from a schema variable name.
@@ -40,6 +44,8 @@ export interface FormOptionsGenOptions {
   schemaImportPath: string;
   /** Form overrides from config (validator, validationLogic) */
   formOverrides?: FormOverridesConfig;
+  /** The validator library being used (needed for Effect's Standard Schema wrapper) */
+  validatorLibrary?: ValidatorLibrary;
 }
 
 /**
@@ -74,6 +80,7 @@ export function generateFormOptionsCode(
   const validator = options.formOverrides?.validator ?? "onSubmitAsync";
   const validationLogic = options.formOverrides?.validationLogic;
   const isOnDynamic = validator === "onDynamic";
+  const isEffect = options.validatorLibrary === "effect";
 
   // Warn if validationLogic is set but validator isn't onDynamic
   if (validationLogic && !isOnDynamic) {
@@ -85,6 +92,12 @@ export function generateFormOptionsCode(
   const writer = createWriter();
 
   writeHeader(writer);
+
+  // Effect Schema import (needed for Standard Schema wrapper)
+  if (isEffect) {
+    writeImport(writer, "effect", ["Schema"]);
+    writer.blankLine();
+  }
 
   // External imports (sorted alphabetically)
   if (isOnDynamic) {
@@ -118,7 +131,14 @@ export function generateFormOptionsCode(
 
   // Generate form options for each mutation
   for (const mutation of mutations) {
-    writeFormOptions(writer, mutation, validator, isOnDynamic, validationLogic);
+    writeFormOptions(
+      writer,
+      mutation,
+      validator,
+      isOnDynamic,
+      validationLogic,
+      isEffect,
+    );
     writer.blankLine();
   }
 
@@ -136,10 +156,17 @@ function writeFormOptions(
   mutation: MutationOperation,
   validator: string,
   isOnDynamic: boolean,
-  validationLogic?: FormOverridesConfig["validationLogic"],
+  validationLogic: FormOverridesConfig["validationLogic"] | undefined,
+  isEffect: boolean,
 ): void {
   const formOptionsName = `${toCamelCase(mutation.operationId)}FormOptions`;
   const typeName = schemaNameToTypeName(mutation.requestSchemaName);
+
+  // For Effect Schema, we need to wrap the schema with Schema.standardSchemaV1()
+  // to make it Standard Schema compliant for TanStack Form
+  const schemaExpression = isEffect
+    ? `Schema.standardSchemaV1(${mutation.requestSchemaName})`
+    : mutation.requestSchemaName;
 
   writer
     .write(`export const ${formOptionsName} = formOptions(`)
@@ -159,7 +186,7 @@ function writeFormOptions(
       writer
         .write("validators: ")
         .inlineBlock(() => {
-          writer.writeLine(`${validator}: ${mutation.requestSchemaName},`);
+          writer.writeLine(`${validator}: ${schemaExpression},`);
         })
         .write(",");
     })

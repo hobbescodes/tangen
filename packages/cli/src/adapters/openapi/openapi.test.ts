@@ -57,6 +57,14 @@ const validatorPatterns: Record<
     array: "type(",
     nullable: "| null",
   },
+  effect: {
+    import: 'import { Schema } from "effect"',
+    object: "Schema.Struct(",
+    string: "Schema.String",
+    enum: "Schema.Union(Schema.Literal(",
+    array: "Schema.Array(",
+    nullable: "Schema.NullishOr(",
+  },
 };
 
 describe("OpenAPI Adapter", () => {

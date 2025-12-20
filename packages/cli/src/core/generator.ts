@@ -13,7 +13,7 @@ import {
   normalizeGenerates,
 } from "./config";
 
-import type { SourceConfig, TangramsConfig } from "./config";
+import type { SourceConfig, TangramsConfig, ValidatorLibrary } from "./config";
 
 // =============================================================================
 // Hardcoded File Names
@@ -183,6 +183,7 @@ export async function generate(
         sourceOutputDir,
         schema,
         schemaPath,
+        validatorLibrary: config.validator,
       });
       formSourceNames.push(source.name);
     }
@@ -413,6 +414,7 @@ interface GenerateFormFilesOptions {
   sourceOutputDir: string;
   schema: unknown;
   schemaPath: string;
+  validatorLibrary: ValidatorLibrary;
 }
 
 /**
@@ -422,7 +424,8 @@ interface GenerateFormFilesOptions {
 async function generateFormFiles(
   options: GenerateFormFilesOptions,
 ): Promise<void> {
-  const { source, sourceOutputDir, schema, schemaPath } = options;
+  const { source, sourceOutputDir, schema, schemaPath, validatorLibrary } =
+    options;
 
   consola.info(`Generating form files for: ${source.name}`);
 
@@ -443,6 +446,7 @@ async function generateFormFiles(
     schemaImportPath,
     sourceName: source.name,
     formOverrides: getFormOverrides(source),
+    validatorLibrary,
   });
 
   // Log any warnings (deduplicated)

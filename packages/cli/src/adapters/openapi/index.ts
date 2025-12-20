@@ -151,6 +151,7 @@ class OpenAPIAdapterImpl implements IOpenAPIAdapter {
     const result = generateFormOptionsCode(mutationOps, {
       schemaImportPath: options.schemaImportPath,
       formOverrides: options.formOverrides,
+      validatorLibrary: options.validatorLibrary,
     });
 
     return {

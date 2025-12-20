@@ -159,6 +159,8 @@ export interface FormGenOptions {
   sourceName: string;
   /** Form overrides from config (validator, validationLogic) */
   formOverrides?: FormOverridesConfig;
+  /** Validation library (needed for Effect's Standard Schema wrapper) */
+  validatorLibrary?: ValidatorLibrary;
 }
 
 // =============================================================================

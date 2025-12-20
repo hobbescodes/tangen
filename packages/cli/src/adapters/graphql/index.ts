@@ -210,6 +210,7 @@ class GraphQLAdapterImpl implements IGraphQLAdapter {
     const result = generateFormOptionsCode(mutationOps, {
       schemaImportPath: options.schemaImportPath,
       formOverrides: options.formOverrides,
+      validatorLibrary: options.validatorLibrary,
     });
 
     return {

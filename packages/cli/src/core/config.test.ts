@@ -455,6 +455,46 @@ describe("configSchema", () => {
       expect(result.data.output).toBe("./custom/output");
     }
   });
+
+  it("validates all supported validator libraries", () => {
+    const validators = ["zod", "valibot", "arktype", "effect"] as const;
+    for (const validator of validators) {
+      const config = {
+        validator,
+        sources: [
+          {
+            name: "graphql",
+            type: "graphql",
+            schema: { url: "http://localhost:4000/graphql" },
+            documents: "./src/graphql/**/*.graphql",
+            generates: ["query"],
+          },
+        ],
+      };
+      const result = configSchema.safeParse(config);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.validator).toBe(validator);
+      }
+    }
+  });
+
+  it("rejects invalid validator library", () => {
+    const config = {
+      validator: "invalid",
+      sources: [
+        {
+          name: "graphql",
+          type: "graphql",
+          schema: { url: "http://localhost:4000/graphql" },
+          documents: "./src/graphql/**/*.graphql",
+          generates: ["query"],
+        },
+      ],
+    };
+    const result = configSchema.safeParse(config);
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("defineConfig", () => {

@@ -5,6 +5,7 @@
  */
 
 import { arktypeEmitter } from "./arktype";
+import { effectEmitter } from "./effect";
 import { valibotEmitter } from "./valibot";
 import { zodEmitter } from "./zod";
 
@@ -21,6 +22,7 @@ export const emitters: Record<ValidatorLibrary, Emitter> = {
   zod: zodEmitter,
   valibot: valibotEmitter,
   arktype: arktypeEmitter,
+  effect: effectEmitter,
 };
 
 /**
@@ -40,7 +42,12 @@ export function getEmitter(library: ValidatorLibrary): Emitter {
  * Check if a string is a valid validator library name
  */
 export function isValidatorLibrary(value: string): value is ValidatorLibrary {
-  return value === "zod" || value === "valibot" || value === "arktype";
+  return (
+    value === "zod" ||
+    value === "valibot" ||
+    value === "arktype" ||
+    value === "effect"
+  );
 }
 
 /**
@@ -50,10 +57,12 @@ export const supportedValidators: ValidatorLibrary[] = [
   "zod",
   "valibot",
   "arktype",
+  "effect",
 ];
 
 // Re-export individual emitters for direct access if needed
 export { arktypeEmitter } from "./arktype";
+export { effectEmitter } from "./effect";
 export { valibotEmitter } from "./valibot";
 export { zodEmitter } from "./zod";
 

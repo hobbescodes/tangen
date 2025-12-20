@@ -108,6 +108,14 @@ async function parseWithValidator(
         }
         return { success: true, data: result };
       }
+      case "effect": {
+        const { Schema } = await import("effect");
+        const decodeResult = Schema.decodeUnknownEither(schema)(data);
+        if (decodeResult._tag === "Left") {
+          return { success: false, error: decodeResult.left };
+        }
+        return { success: true, data: decodeResult.right };
+      }
     }
   } catch (error) {
     return { success: false, error };

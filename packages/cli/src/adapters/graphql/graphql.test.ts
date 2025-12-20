@@ -56,6 +56,12 @@ const validatorPatterns: Record<
     string: '"string"',
     enum: "type.enumerated(",
   },
+  effect: {
+    import: 'import { Schema } from "effect"',
+    object: "Schema.Struct(",
+    string: "Schema.String",
+    enum: "Schema.Union(Schema.Literal(",
+  },
 };
 
 // Test schema for unit tests (doesn't require network)
@@ -1245,6 +1251,15 @@ describe("GraphQL Collection Discovery", () => {
       ).not.toThrow();
     });
 
+    it("accepts valid effect scalar expressions", () => {
+      expect(() =>
+        graphqlAdapter.generateSchemas(testSchemaWithScalar, scalarTestConfig, {
+          validator: "effect",
+          scalars: { Cursor: "Schema.String", DateTime: "Schema.String" },
+        }),
+      ).not.toThrow();
+    });
+
     it("throws error for invalid zod scalar with helpful message", () => {
       expect(() =>
         graphqlAdapter.generateSchemas(testSchemaWithScalar, scalarTestConfig, {
@@ -1297,6 +1312,24 @@ describe("GraphQL Collection Discovery", () => {
           scalars: { Cursor: "string" },
         }),
       ).toThrow(/Did you mean "type\("string"\)"\?/);
+    });
+
+    it("throws error for invalid effect scalar", () => {
+      expect(() =>
+        graphqlAdapter.generateSchemas(testSchemaWithScalar, scalarTestConfig, {
+          validator: "effect",
+          scalars: { Cursor: "string" },
+        }),
+      ).toThrow(/Invalid scalar mapping for "Cursor": received "string"/);
+    });
+
+    it("suggests correct effect expression in error message", () => {
+      expect(() =>
+        graphqlAdapter.generateSchemas(testSchemaWithScalar, scalarTestConfig, {
+          validator: "effect",
+          scalars: { Cursor: "string" },
+        }),
+      ).toThrow(/Did you mean "Schema\.String"\?/);
     });
 
     it("includes validator name in error message", () => {
