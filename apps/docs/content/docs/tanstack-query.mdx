@@ -37,7 +37,7 @@ pnpm add @tanstack/react-query
 
 Install your chosen validator (Zod is the default). See [Validator Libraries](/docs#validator-libraries) for details.
 
-<Tabs items={['Zod', 'Valibot', 'ArkType']}>
+<Tabs items={['Zod', 'Valibot', 'ArkType', 'Effect']}>
   <Tab value="Zod">
 ```bash
 bun add zod
@@ -51,6 +51,11 @@ bun add valibot
   <Tab value="ArkType">
 ```bash
 bun add arktype
+```
+  </Tab>
+  <Tab value="Effect">
+```bash
+bun add effect
 ```
   </Tab>
 </Tabs>
@@ -441,7 +446,7 @@ function CreateUserButton() {
 
 Map custom GraphQL scalars to validator expressions. Values must be valid expressions for your configured validator:
 
-<Tabs items={['Zod', 'Valibot', 'ArkType']}>
+<Tabs items={['Zod', 'Valibot', 'ArkType', 'Effect']}>
   <Tab value="Zod">
 ```typescript
 {
@@ -493,9 +498,26 @@ Map custom GraphQL scalars to validator expressions. Values must be valid expres
 }
 ```
   </Tab>
+  <Tab value="Effect">
+```typescript
+{
+  name: "graphql",
+  type: "graphql",
+  schema: { url: "..." },
+  documents: "...",
+  generates: ["query"],
+  overrides: {
+    scalars: {
+      DateTime: "Schema.String",
+      Cursor: "Schema.String",
+    },
+  },
+}
+```
+  </Tab>
 </Tabs>
 
-> **Note:** Scalar values must start with a valid prefix for your validator: `z.` for Zod, `v.` for Valibot, or `type(` / `type.` for ArkType.
+> **Note:** Scalar values must start with a valid prefix for your validator: `z.` for Zod, `v.` for Valibot, `type(` / `type.` for ArkType, or `Schema.` for Effect.
 
 #### Built-in Scalar Mappings
 

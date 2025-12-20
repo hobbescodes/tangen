@@ -55,6 +55,7 @@ bun add @tanstack/react-db @tanstack/query-db-collection @tanstack/react-query
 bun add zod        # Default validator
 # bun add valibot  # Lightweight alternative
 # bun add arktype  # Type-first validation
+# bun add effect   # Effect ecosystem
 
 # GraphQL sources
 bun add graphql-request

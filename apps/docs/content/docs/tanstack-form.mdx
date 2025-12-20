@@ -7,7 +7,7 @@ description: Generate formOptions for TanStack Form with schema validation.
 
 Tangrams generates `formOptions` with validation schemas from your mutations. These snap right into TanStack Form's `useForm` hook.
 
-By default, Tangrams uses Zod for validation, but you can also use [Valibot or ArkType](/docs#validator-libraries) by setting the `validator` option in your config.
+By default, Tangrams uses Zod for validation, but you can also use [Valibot, ArkType, or Effect](/docs#validator-libraries) by setting the `validator` option in your config.
 
 ## Peer Dependencies
 
@@ -37,7 +37,7 @@ pnpm add @tanstack/react-form
 
 Install your chosen validator (Zod is the default):
 
-<Tabs items={['Zod', 'Valibot', 'ArkType']}>
+<Tabs items={['Zod', 'Valibot', 'ArkType', 'Effect']}>
   <Tab value="Zod">
 ```bash
 bun add zod
@@ -51,6 +51,11 @@ bun add valibot
   <Tab value="ArkType">
 ```bash
 bun add arktype
+```
+  </Tab>
+  <Tab value="Effect">
+```bash
+bun add effect
 ```
   </Tab>
 </Tabs>
