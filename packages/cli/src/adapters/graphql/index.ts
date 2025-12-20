@@ -158,6 +158,7 @@ class GraphQLAdapterImpl implements IGraphQLAdapter {
     // Parse GraphQL to IR
     const irResult = parseGraphQLToIR(schema.schema, schema.documents, {
       scalars: options.scalars,
+      validator: options.validator,
     });
 
     // Get the appropriate emitter for the configured validator

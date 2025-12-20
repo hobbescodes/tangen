@@ -41,6 +41,7 @@ import type {
   ParsedFragment,
   ParsedOperation,
 } from "@/core/documents";
+import type { ValidatorLibrary } from "@/generators/emitters/types";
 import type {
   NamedSchemaIR,
   ObjectPropertyIR,
@@ -75,6 +76,105 @@ const defaultScalarToIR: Record<string, SchemaIR> = {
 };
 
 // ============================================================================
+// Custom Scalar Validation
+// ============================================================================
+
+/**
+ * Valid prefixes for custom scalar code by validator library.
+ * Custom scalars must start with one of these prefixes to be considered valid.
+ */
+const validatorPrefixes: Record<ValidatorLibrary, string[]> = {
+  zod: ["z."],
+  valibot: ["v."],
+  arktype: ["type(", "type."],
+};
+
+/**
+ * Suggested scalar code replacements for common invalid values.
+ * Used to provide helpful error messages when users provide TypeScript types
+ * instead of validator expressions.
+ */
+const scalarSuggestions: Record<ValidatorLibrary, Record<string, string>> = {
+  zod: {
+    string: "z.string()",
+    String: "z.string()",
+    number: "z.number()",
+    Number: "z.number()",
+    boolean: "z.boolean()",
+    Boolean: "z.boolean()",
+    Date: "z.string()",
+    date: "z.string()",
+    object: "z.object({})",
+    any: "z.any()",
+    unknown: "z.unknown()",
+  },
+  valibot: {
+    string: "v.string()",
+    String: "v.string()",
+    number: "v.number()",
+    Number: "v.number()",
+    boolean: "v.boolean()",
+    Boolean: "v.boolean()",
+    Date: "v.string()",
+    date: "v.string()",
+    object: "v.object({})",
+    any: "v.any()",
+    unknown: "v.unknown()",
+  },
+  arktype: {
+    string: 'type("string")',
+    String: 'type("string")',
+    number: 'type("number")',
+    Number: 'type("number")',
+    boolean: 'type("boolean")',
+    Boolean: 'type("boolean")',
+    Date: 'type("string")',
+    date: 'type("string")',
+    object: "type({})",
+    any: 'type("unknown")',
+    unknown: 'type("unknown")',
+  },
+};
+
+/**
+ * Get the default suggestion for an unknown scalar value
+ */
+function getDefaultSuggestion(validator: ValidatorLibrary): string {
+  switch (validator) {
+    case "zod":
+      return "z.string()";
+    case "valibot":
+      return "v.string()";
+    case "arktype":
+      return 'type("string")';
+  }
+}
+
+/**
+ * Validate that a custom scalar value is a valid validator expression.
+ * Returns an error message if invalid, undefined if valid.
+ */
+function validateScalarCode(
+  scalarName: string,
+  code: string,
+  validator: ValidatorLibrary,
+): string | undefined {
+  const prefixes = validatorPrefixes[validator];
+  const looksValid = prefixes.some((prefix) => code.startsWith(prefix));
+
+  if (!looksValid) {
+    const suggestion =
+      scalarSuggestions[validator][code] ?? getDefaultSuggestion(validator);
+    return (
+      `Invalid scalar mapping for "${scalarName}": received "${code}". ` +
+      `For ${validator}, scalar values must be valid ${validator} expressions. ` +
+      `Did you mean "${suggestion}"?`
+    );
+  }
+  return undefined;
+}
+
+// ============================================================================
 // Options & Context
 // ============================================================================
 
@@ -88,6 +188,11 @@ export interface GraphQLIROptions {
    * e.g., { DateTime: "z.string()" } for Zod
    */
   scalars?: Record<string, string>;
+  /**
+   * The validator library being used.
+   * Used to validate that custom scalar values are valid expressions for the target library.
+   */
+  validator?: ValidatorLibrary;
 }
 
 /**
@@ -100,6 +205,8 @@ interface GraphQLIRContext {
   scalarMappings: Record<string, SchemaIR>;
   /** Custom scalar code mappings (validator-specific, emitted as raw) */
   customScalars: Record<string, string>;
+  /** The validator library being used (for scalar validation) */
+  validator?: ValidatorLibrary;
   /** Track generated schema names to avoid duplicates */
   generatedSchemas: Set<string>;
   /** Track schemas that need to be generated (dependencies) */
@@ -125,6 +232,7 @@ function createContext(
     schema,
     scalarMappings: { ...defaultScalarToIR },
     customScalars: options.scalars ?? {},
+    validator: options.validator,
     generatedSchemas: new Set(),
     pendingSchemas: new Map(),
     visited: new Set(),
@@ -701,7 +809,17 @@ function graphqlInputTypeToIR(
 function getScalarIR(scalarName: string, ctx: GraphQLIRContext): SchemaIR {
   // Check for custom scalar mapping first (validator-specific)
   if (ctx.customScalars[scalarName]) {
-    return { kind: "raw", code: ctx.customScalars[scalarName] };
+    const code = ctx.customScalars[scalarName];
+
+    // Validate the scalar code if validator is specified
+    if (ctx.validator) {
+      const error = validateScalarCode(scalarName, code, ctx.validator);
+      if (error) {
+        throw new Error(error);
+      }
+    }
+
+    return { kind: "raw", code };
   }
 
   // Check default mappings

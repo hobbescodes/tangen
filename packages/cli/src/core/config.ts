@@ -459,7 +459,8 @@ export default defineConfig({
 			documents: "./src/graphql/**/*.graphql",
 			generates: ["query"],
 			// overrides: {
-			// 	scalars: { DateTime: "Date" },
+			// 	// Custom scalar mappings (must be valid validator expressions)
+			// 	// scalars: { DateTime: "z.string()", Cursor: "z.string()" },
 			// },
 		},
 		// {
