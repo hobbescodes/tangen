@@ -87,6 +87,7 @@ const validatorPrefixes: Record<ValidatorLibrary, string[]> = {
   zod: ["z."],
   valibot: ["v."],
   arktype: ["type(", "type."],
+  effect: ["Schema."],
 };
 
 /**
@@ -134,6 +135,19 @@ const scalarSuggestions: Record<ValidatorLibrary, Record<string, string>> = {
     any: 'type("unknown")',
     unknown: 'type("unknown")',
   },
+  effect: {
+    string: "Schema.String",
+    String: "Schema.String",
+    number: "Schema.Number",
+    Number: "Schema.Number",
+    boolean: "Schema.Boolean",
+    Boolean: "Schema.Boolean",
+    Date: "Schema.String",
+    date: "Schema.String",
+    object: "Schema.Struct({})",
+    any: "Schema.Unknown",
+    unknown: "Schema.Unknown",
+  },
 };
 
 /**
@@ -147,6 +161,8 @@ function getDefaultSuggestion(validator: ValidatorLibrary): string {
       return "v.string()";
     case "arktype":
       return 'type("string")';
+    case "effect":
+      return "Schema.String";
   }
 }
 

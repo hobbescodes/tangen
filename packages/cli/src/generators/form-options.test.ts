@@ -350,3 +350,85 @@ describe("generateFormOptionsCode with validator config", () => {
     expect(result.content).not.toContain("revalidateLogic");
   });
 });
+
+describe("generateFormOptionsCode with Effect validator", () => {
+  const mutations = [
+    {
+      operationId: "createUser",
+      requestSchemaName: "createUserRequestSchema",
+    },
+  ];
+
+  it("wraps schema with Schema.standardSchemaV1 for Effect", () => {
+    const result = generateFormOptionsCode(mutations, {
+      schemaImportPath: "./types",
+      validatorLibrary: "effect",
+    });
+
+    expect(result.content).toContain('import { Schema } from "effect"');
+    expect(result.content).toContain(
+      "onSubmitAsync: Schema.standardSchemaV1(createUserRequestSchema)",
+    );
+  });
+
+  it("does not add Effect import for non-Effect validators", () => {
+    const result = generateFormOptionsCode(mutations, {
+      schemaImportPath: "./types",
+      validatorLibrary: "zod",
+    });
+
+    expect(result.content).not.toContain('import { Schema } from "effect"');
+    expect(result.content).not.toContain("Schema.standardSchemaV1");
+    expect(result.content).toContain("onSubmitAsync: createUserRequestSchema");
+  });
+
+  it("uses default validator without validatorLibrary", () => {
+    const result = generateFormOptionsCode(mutations, {
+      schemaImportPath: "./types",
+    });
+
+    expect(result.content).not.toContain('import { Schema } from "effect"');
+    expect(result.content).not.toContain("Schema.standardSchemaV1");
+    expect(result.content).toContain("onSubmitAsync: createUserRequestSchema");
+  });
+
+  it("wraps schema for Effect with onDynamic validator", () => {
+    const result = generateFormOptionsCode(mutations, {
+      schemaImportPath: "./types",
+      validatorLibrary: "effect",
+      formOverrides: { validator: "onDynamic" },
+    });
+
+    expect(result.content).toContain('import { Schema } from "effect"');
+    expect(result.content).toContain(
+      "onDynamic: Schema.standardSchemaV1(createUserRequestSchema)",
+    );
+    expect(result.content).toContain("validationLogic: revalidateLogic");
+  });
+
+  it("wraps schema for multiple mutations with Effect", () => {
+    const multiMutations = [
+      {
+        operationId: "createUser",
+        requestSchemaName: "createUserRequestSchema",
+      },
+      {
+        operationId: "updateUser",
+        requestSchemaName: "updateUserRequestSchema",
+      },
+    ];
+
+    const result = generateFormOptionsCode(multiMutations, {
+      schemaImportPath: "./types",
+      validatorLibrary: "effect",
+    });
+
+    expect(result.content).toContain('import { Schema } from "effect"');
+    expect(result.content).toContain(
+      "Schema.standardSchemaV1(createUserRequestSchema)",
+    );
+    expect(result.content).toContain(
+      "Schema.standardSchemaV1(updateUserRequestSchema)",
+    );
+  });
+});

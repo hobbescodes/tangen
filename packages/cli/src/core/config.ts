@@ -332,8 +332,14 @@ export type SourceConfig = z.infer<typeof sourceSchema>;
  * - "zod" - Zod v4+ (default)
  * - "valibot" - Valibot v1+
  * - "arktype" - ArkType v2+
+ * - "effect" - Effect Schema v3+ (requires Schema.standardSchemaV1 wrapper for form validation)
  */
-export const validatorLibrarySchema = z.enum(["zod", "valibot", "arktype"]);
+export const validatorLibrarySchema = z.enum([
+  "zod",
+  "valibot",
+  "arktype",
+  "effect",
+]);
 
 export type ValidatorLibrary = z.infer<typeof validatorLibrarySchema>;
 

@@ -13,7 +13,7 @@ import type { NamedSchemaIR } from "../ir/types";
 /**
  * Supported validator libraries
  */
-export type ValidatorLibrary = "zod" | "valibot" | "arktype";
+export type ValidatorLibrary = "zod" | "valibot" | "arktype" | "effect";
 
 // ============================================================================
 // Emitter Options & Results

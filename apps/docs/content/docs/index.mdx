@@ -233,20 +233,23 @@ export default defineConfig({
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `output` | `string` | `"."` | Directory where the `tangrams` folder will be generated |
-| `validator` | `"zod" \| "valibot" \| "arktype"` | `"zod"` | Validation library for generated schemas |
+| `validator` | `"zod" \| "valibot" \| "arktype" \| "effect"` | `"zod"` | Validation library for generated schemas |
 | `sources` | `SourceConfig[]` | (required) | Array of data sources (minimum 1 required) |
 
 ### Validator Libraries
 
-Tangrams supports three validation libraries that all implement [Standard Schema](https://github.com/standard-schema/standard-schema):
+Tangrams supports four validation libraries that all implement [Standard Schema](https://github.com/standard-schema/standard-schema):
 
 | Library | Import | Description |
 |---------|--------|-------------|
 | **Zod** | `zod` | The default. Full-featured schema validation with great TypeScript inference. |
 | **Valibot** | `valibot` | Lightweight alternative with modular design and smaller bundle size. |
 | **ArkType** | `arktype` | Type-first validation with runtime safety and excellent TypeScript integration. |
+| **Effect** | `effect` | Part of the Effect ecosystem. Requires `Schema.standardSchemaV1()` wrapper for TanStack Form. |
 
-All three libraries work seamlessly with TanStack Form since they implement the Standard Schema protocol. Choose based on your preferences for bundle size, API style, or existing usage in your project.
+All four libraries work seamlessly with TanStack Form since they implement the Standard Schema protocol. Choose based on your preferences for bundle size, API style, or existing usage in your project.
+
+> **Note:** Effect Schema requires wrapping with `Schema.standardSchemaV1()` for Standard Schema compliance. Tangrams handles this automatically in generated form options.
 
 ```typescript
 // Use Zod (default)
@@ -266,11 +269,17 @@ export default defineConfig({
   validator: "arktype",
   sources: [/* ... */],
 })
+
+// Use Effect for the Effect ecosystem
+export default defineConfig({
+  validator: "effect",
+  sources: [/* ... */],
+})
 ```
 
 Install your chosen validator as a peer dependency:
 
-<Tabs items={['Zod', 'Valibot', 'ArkType']}>
+<Tabs items={['Zod', 'Valibot', 'ArkType', 'Effect']}>
   <Tab value="Zod">
 ```bash
 bun add zod
@@ -284,6 +293,11 @@ bun add valibot
   <Tab value="ArkType">
 ```bash
 bun add arktype
+```
+  </Tab>
+  <Tab value="Effect">
+```bash
+bun add effect
 ```
   </Tab>
 </Tabs>
@@ -353,7 +367,7 @@ generates: ["query", "form", "db"] // All three
 
 Map custom GraphQL scalars to validator expressions. Values must be valid expressions for your configured validator library:
 
-<Tabs items={['Zod', 'Valibot', 'ArkType']}>
+<Tabs items={['Zod', 'Valibot', 'ArkType', 'Effect']}>
   <Tab value="Zod">
 ```typescript
 overrides: {
@@ -387,9 +401,20 @@ overrides: {
 }
 ```
   </Tab>
+  <Tab value="Effect">
+```typescript
+overrides: {
+  scalars: {
+    DateTime: "Schema.String",
+    JSON: "Schema.Unknown",
+    Cursor: "Schema.String",
+  },
+}
+```
+  </Tab>
 </Tabs>
 
-> **Note:** Scalar values must start with a valid prefix for your validator: `z.` for Zod, `v.` for Valibot, or `type(` / `type.` for ArkType. Using raw TypeScript types like `"string"` or `"Date"` will throw a validation error with a helpful suggestion.
+> **Note:** Scalar values must start with a valid prefix for your validator: `z.` for Zod, `v.` for Valibot, `type(` / `type.` for ArkType, or `Schema.` for Effect. Using raw TypeScript types like `"string"` or `"Date"` will throw a validation error with a helpful suggestion.
 
 **Built-in Scalar Mappings:**
 
