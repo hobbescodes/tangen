@@ -1,5 +1,11 @@
 # tangrams
 
+## 0.14.0
+
+### Minor Changes
+
+- 564f133: Make `tangrams init` interactive by default, prompting for configuration values including validation library, source type, schema location, and what to generate. Use `--skip` flag to generate a template config file for manual editing.
+
 ## 0.13.0
 
 ### Minor Changes
