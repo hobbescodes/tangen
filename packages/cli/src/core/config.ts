@@ -556,6 +556,9 @@ export interface ConfigGenerationOptions {
 
 /**
  * Generate a config file from interactive prompt options
+ *
+ * Note: All user-provided string values are passed through JSON.stringify()
+ * to properly escape special characters and prevent config injection.
  */
 export function generateConfigFromOptions(
   options: ConfigGenerationOptions,
@@ -567,25 +570,29 @@ export function generateConfigFromOptions(
   const generatesArray = JSON.stringify(source.generates);
 
   if (source.type === "graphql") {
+    // Use JSON.stringify for all user-provided values to escape special characters
+    const safeName = JSON.stringify(source.name);
+    const safeDocuments = JSON.stringify(source.documents);
+
     const schemaBlock =
       source.schema.type === "url"
         ? `schema: {
-				url: "${source.schema.url}",
+				url: ${JSON.stringify(source.schema.url)},
 			},`
         : `schema: {
-				file: "${source.schema.file}",
+				file: ${JSON.stringify(source.schema.file)},
 			},
-			url: "${source.schema.runtimeUrl}",`;
+			url: ${JSON.stringify(source.schema.runtimeUrl)},`;
 
     return `import { defineConfig } from "tangrams"
 
 export default defineConfig({${validatorLine}
 	sources: [
 		{
-			name: "${source.name}",
+			name: ${safeName},
 			type: "graphql",
 			${schemaBlock}
-			documents: "${source.documents}",
+			documents: ${safeDocuments},
 			generates: ${generatesArray},
 		},
 	],
@@ -593,15 +600,18 @@ export default defineConfig({${validatorLine}
 `;
   }
 
-  // OpenAPI source
+  // OpenAPI source - use JSON.stringify for all user-provided values
+  const safeName = JSON.stringify(source.name);
+  const safeSpec = JSON.stringify(source.spec);
+
   return `import { defineConfig } from "tangrams"
 
 export default defineConfig({${validatorLine}
 	sources: [
 		{
-			name: "${source.name}",
+			name: ${safeName},
 			type: "openapi",
-			spec: "${source.spec}",
+			spec: ${safeSpec},
 			generates: ${generatesArray},
 		},
 	],

@@ -839,6 +839,76 @@ describe("generateConfigFromOptions", () => {
       expect(result).toContain('spec: "https://api.example.com/openapi.json"');
     });
   });
+
+  describe("special character escaping", () => {
+    it("escapes double quotes in URL", () => {
+      const result = generateConfigFromOptions({
+        validator: "zod",
+        source: {
+          type: "graphql",
+          name: "api",
+          schema: { type: "url", url: 'https://example.com/graphql?foo="bar"' },
+          documents: "./src/graphql/**/*.graphql",
+          generates: ["query"],
+        },
+      });
+
+      // Should contain escaped quotes
+      expect(result).toContain(
+        'url: "https://example.com/graphql?foo=\\"bar\\""',
+      );
+    });
+
+    it("escapes backslashes in file paths", () => {
+      const result = generateConfigFromOptions({
+        validator: "zod",
+        source: {
+          type: "openapi",
+          name: "api",
+          spec: "C:\\Users\\test\\openapi.yaml",
+          generates: ["query"],
+        },
+      });
+
+      // Should contain escaped backslashes
+      expect(result).toContain('spec: "C:\\\\Users\\\\test\\\\openapi.yaml"');
+    });
+
+    it("escapes newlines in input", () => {
+      const result = generateConfigFromOptions({
+        validator: "zod",
+        source: {
+          type: "graphql",
+          name: "api",
+          schema: { type: "url", url: "https://example.com/graphql" },
+          documents: "./src/graphql/**/*.graphql\n/other/path",
+          generates: ["query"],
+        },
+      });
+
+      // Should contain escaped newline
+      expect(result).toContain(
+        'documents: "./src/graphql/**/*.graphql\\n/other/path"',
+      );
+    });
+
+    it("handles potential injection attempts safely", () => {
+      const result = generateConfigFromOptions({
+        validator: "zod",
+        source: {
+          type: "openapi",
+          name: "api",
+          spec: './openapi.yaml", malicious: "code',
+          generates: ["query"],
+        },
+      });
+
+      // The malicious input should be escaped, not interpreted as config
+      expect(result).toContain('spec: "./openapi.yaml\\", malicious: \\"code"');
+      // Should NOT contain unescaped malicious key
+      expect(result).not.toMatch(/malicious:\s*"code"/);
+    });
+  });
 });
 
 describe("normalizeGenerates", () => {
