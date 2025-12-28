@@ -501,22 +501,137 @@ export async function loadTangramsConfig(
 }
 
 // =============================================================================
-// Default Config Generator
+// Config Generator Types
 // =============================================================================
 
 /**
- * Generate a config file content
+ * GraphQL URL-based schema options for config generation
  */
-export function generateDefaultConfig(): string {
+export interface GraphQLUrlSchemaOptions {
+  type: "url";
+  url: string;
+}
+
+/**
+ * GraphQL file-based schema options for config generation
+ */
+export interface GraphQLFileSchemaOptions {
+  type: "file";
+  file: string;
+  runtimeUrl: string;
+}
+
+/**
+ * GraphQL source options for config generation
+ */
+export interface GraphQLSourceOptions {
+  type: "graphql";
+  name: string;
+  schema: GraphQLUrlSchemaOptions | GraphQLFileSchemaOptions;
+  documents: string;
+  generates: ("query" | "form" | "db")[];
+}
+
+/**
+ * OpenAPI source options for config generation
+ */
+export interface OpenAPISourceOptions {
+  type: "openapi";
+  name: string;
+  spec: string;
+  generates: ("query" | "form" | "db")[];
+}
+
+/**
+ * Options for generating a config from interactive prompts
+ */
+export interface ConfigGenerationOptions {
+  validator: ValidatorLibrary;
+  source: GraphQLSourceOptions | OpenAPISourceOptions;
+}
+
+// =============================================================================
+// Config Generators
+// =============================================================================
+
+/**
+ * Generate a config file from interactive prompt options
+ *
+ * Note: All user-provided string values are passed through JSON.stringify()
+ * to properly escape special characters and prevent config injection.
+ */
+export function generateConfigFromOptions(
+  options: ConfigGenerationOptions,
+): string {
+  const { validator, source } = options;
+
+  const validatorLine =
+    validator === "zod" ? "" : `\n\tvalidator: "${validator}",`;
+  const generatesArray = JSON.stringify(source.generates);
+
+  if (source.type === "graphql") {
+    // Use JSON.stringify for all user-provided values to escape special characters
+    const safeName = JSON.stringify(source.name);
+    const safeDocuments = JSON.stringify(source.documents);
+
+    const schemaBlock =
+      source.schema.type === "url"
+        ? `schema: {
+				url: ${JSON.stringify(source.schema.url)},
+			},`
+        : `schema: {
+				file: ${JSON.stringify(source.schema.file)},
+			},
+			url: ${JSON.stringify(source.schema.runtimeUrl)},`;
+
+    return `import { defineConfig } from "tangrams"
+
+export default defineConfig({${validatorLine}
+	sources: [
+		{
+			name: ${safeName},
+			type: "graphql",
+			${schemaBlock}
+			documents: ${safeDocuments},
+			generates: ${generatesArray},
+		},
+	],
+})
+`;
+  }
+
+  // OpenAPI source - use JSON.stringify for all user-provided values
+  const safeName = JSON.stringify(source.name);
+  const safeSpec = JSON.stringify(source.spec);
+
+  return `import { defineConfig } from "tangrams"
+
+export default defineConfig({${validatorLine}
+	sources: [
+		{
+			name: ${safeName},
+			type: "openapi",
+			spec: ${safeSpec},
+			generates: ${generatesArray},
+		},
+	],
+})
+`;
+}
+
+/**
+ * Generate a template config file with placeholder values (for --skip mode)
+ */
+export function generateTemplateConfig(): string {
   return `import { defineConfig } from "tangrams"
 
 export default defineConfig({
 	sources: [
 		{
-			name: "graphql",
+			name: "api",
 			type: "graphql",
 			schema: {
-				url: "http://localhost:4000/graphql",
+				url: "<YOUR_GRAPHQL_URL>",
 				// headers: { "x-api-key": process.env.API_KEY },
 			},
 			// Or use local schema file(s):
