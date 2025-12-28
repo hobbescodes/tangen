@@ -194,7 +194,7 @@ tangrams/
     ├── schema.ts             # Validation schemas + TypeScript types
     ├── functions.ts          # Standalone fetch functions (auto-generated)
     ├── query/
-    │   └── operations.ts     # queryOptions and mutationOptions
+    │   └── options.ts        # queryOptions and mutationOptions
     └── db/
         └── collections.ts    # TanStack DB collection options
 ```
@@ -280,7 +280,7 @@ Pass your `QueryClient` to the collection options factory:
 
 ```typescript
 import { QueryClient } from "@tanstack/react-query"
-import { userCollectionOptions } from "./generated/graphql/db/collections"
+import { userCollectionOptions } from "./tangrams/my-api/db/collections"
 
 const queryClient = new QueryClient()
 const usersCollection = userCollectionOptions(queryClient)
@@ -292,7 +292,7 @@ Use the collection with TanStack DB's React hooks:
 
 ```typescript
 import { useLiveQuery } from "@tanstack/react-db"
-import { userCollectionOptions } from "./generated/graphql/db/collections"
+import { userCollectionOptions } from "./tangrams/my-api/db/collections"
 
 function UserList({ queryClient }: { queryClient: QueryClient }) {
   const usersCollection = userCollectionOptions(queryClient)
@@ -351,23 +351,25 @@ function UserList({ queryClient }: { queryClient: QueryClient }) {
 
 ### Custom Scalars (GraphQL)
 
-Map GraphQL scalars to TypeScript types using `overrides.scalars`:
+Map GraphQL scalars to validator expressions using `overrides.scalars`. Values must be valid expressions for your configured validator library:
 
 ```typescript
 {
-  name: "graphql",
+  name: "my-api",
   type: "graphql",
   schema: { url: "..." },
   documents: "...",
   generates: ["db"],
   overrides: {
     scalars: {
-      DateTime: "Date",
-      JSON: "Record<string, unknown>",
+      DateTime: "z.string()",      // Use z.coerce.date() for Date objects
+      JSON: "z.unknown()",
     },
   },
 }
 ```
+
+> **Note:** Scalar values must start with a valid prefix for your validator: `z.` for Zod, `v.` for Valibot, `type(` / `type.` for ArkType, or `Schema.` for Effect. See the [Configuration Reference](/docs#scalars-graphql-only) for examples with other validators.
 
 #### Default Scalar Mappings
 
@@ -394,9 +396,9 @@ generates: ["db", "form"]
 
 This generates:
 - `functions.ts` - Standalone fetch functions
-- `query/operations.ts` - Query and mutation options
+- `query/options.ts` - Query and mutation options
 - `db/collections.ts` - TanStack DB collection options
-- `form/forms.ts` - Form options with Zod validation
+- `form/options.ts` - Form options with validation
 
 Note: `"db"` automatically enables `"query"`, so you don't need to specify both.
 

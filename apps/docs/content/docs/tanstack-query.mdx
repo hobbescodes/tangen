@@ -330,7 +330,7 @@ export const getClient = async () => {
 }
 ```
 
-**`operations.ts`** - Query and mutation options with schema validation:
+**`options.ts`** - Query and mutation options with schema validation:
 
 ```typescript
 export const listUsersQueryOptions = (params?: ListUsersParams) =>
@@ -369,7 +369,7 @@ import { useQuery, useSuspenseQuery, useMutation } from "@tanstack/react-query"
 import {
   getUserQueryOptions,
   createUserMutationOptions,
-} from "./generated/graphql/query/operations"
+} from "./tangrams/my-api/query/options"
 
 function UserProfile({ userId }: { userId: string }) {
   // useQuery with full type inference

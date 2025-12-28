@@ -183,7 +183,7 @@ Spread the generated `formOptions` into `useForm`:
 
 ```typescript
 import { useForm } from "@tanstack/react-form"
-import { createUserFormOptions } from "./generated/form/api/forms"
+import { createUserFormOptions } from "./tangrams/my-api/form/options"
 
 function CreateUserForm() {
   const form = useForm({
@@ -246,8 +246,8 @@ Use the generated `formOptions` alongside `mutationOptions` from [TanStack Query
 import { useForm } from "@tanstack/react-form"
 import { useMutation } from "@tanstack/react-query"
 
-import { createUserFormOptions } from "./generated/api/form/forms"
-import { createUserMutationOptions, getUsersQueryOptions } from "./generated/api/query/operations"
+import { createUserFormOptions } from "./tangrams/my-api/form/options"
+import { createUserMutationOptions, getUsersQueryOptions } from "./tangrams/my-api/query/options"
 
 function CreateUserForm() {
   const mutation = useMutation({
@@ -287,8 +287,8 @@ The generated `formOptions` use an empty object with a type assertion for `defau
 
 ```typescript
 import { useForm } from "@tanstack/react-form"
-import { createUserFormOptions } from "./generated/api/form/forms"
-import type { CreateUserRequest } from "./generated/api/schema"
+import { createUserFormOptions } from "./tangrams/my-api/form/options"
+import type { CreateUserRequest } from "./tangrams/my-api/schema"
 
 function CreateUserForm() {
   const defaultValues: CreateUserRequest = {
@@ -315,8 +315,8 @@ For edit forms, populate `defaultValues` with the existing data:
 
 ```typescript
 import { useForm } from "@tanstack/react-form"
-import { updateUserFormOptions } from "./generated/api/form/forms"
-import type { UpdateUserRequest } from "./generated/api/schema"
+import { updateUserFormOptions } from "./tangrams/my-api/form/options"
+import type { UpdateUserRequest } from "./tangrams/my-api/schema"
 
 function EditUserForm({ user }: { user: User }) {
   const defaultValues: UpdateUserRequest = {
