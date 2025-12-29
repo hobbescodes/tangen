@@ -98,6 +98,7 @@ export function tangrams(options: TangramsPluginOptions = {}): Plugin {
   let resolvedConfig: TangramsConfig | null = null;
   let cachedSchemas: Map<string, unknown> | undefined;
   let logger: TangramsLogger;
+  let root: string;
 
   const force = options.force ?? false;
   const clean = options.clean ?? true;
@@ -108,10 +109,11 @@ export function tangrams(options: TangramsPluginOptions = {}): Plugin {
 
     async configResolved(config) {
       logger = createViteLogger(config.logger);
+      root = config.root;
 
       try {
         // Resolve tangrams config from file
-        resolvedConfig = await resolveTangramsConfig(options, config.root);
+        resolvedConfig = await resolveTangramsConfig(options, root);
       } catch (error) {
         // Log error but don't throw - allow Vite to continue
         // This handles cases where config file doesn't exist yet
@@ -131,7 +133,7 @@ export function tangrams(options: TangramsPluginOptions = {}): Plugin {
       try {
         // Run cleanup before generation if enabled
         if (clean) {
-          await runCleanup(resolvedConfig, logger);
+          await runCleanup(resolvedConfig, logger, root);
         }
 
         logger.start("Generating tangrams artifacts...");
@@ -146,7 +148,7 @@ export function tangrams(options: TangramsPluginOptions = {}): Plugin {
         cachedSchemas = result.schemas;
 
         // Save manifest after successful generation
-        await saveGenerationManifest(resolvedConfig, result);
+        await saveGenerationManifest(resolvedConfig, result, root);
 
         logger.success("Generation complete");
       } catch (error) {
@@ -165,6 +167,7 @@ export function tangrams(options: TangramsPluginOptions = {}): Plugin {
         clean,
         cachedSchemas,
         logger,
+        root,
         onSchemasUpdate: (schemas) => {
           cachedSchemas = schemas;
         },
@@ -208,9 +211,10 @@ async function resolveTangramsConfig(
 async function runCleanup(
   config: TangramsConfig,
   logger: TangramsLogger,
+  root: string,
 ): Promise<void> {
   const tangramsOutputDir = join(config.output, "tangrams");
-  const manifest = await loadManifest(join(process.cwd(), tangramsOutputDir));
+  const manifest = await loadManifest(join(root, tangramsOutputDir));
   const analysis = await analyzeCleanup(manifest, config, tangramsOutputDir);
 
   if (!needsCleanup(analysis)) {
@@ -238,9 +242,10 @@ async function runCleanup(
 async function saveGenerationManifest(
   config: TangramsConfig,
   result: GenerateResult,
+  root: string,
 ): Promise<void> {
   const tangramsOutputDir = join(config.output, "tangrams");
-  const fullOutputDir = join(process.cwd(), tangramsOutputDir);
+  const fullOutputDir = join(root, tangramsOutputDir);
 
   const manifest = createEmptyManifest();
 
@@ -266,6 +271,7 @@ interface DevWatcherOptions {
   clean: boolean;
   cachedSchemas: Map<string, unknown> | undefined;
   logger: TangramsLogger;
+  root: string;
   onSchemasUpdate: (schemas: Map<string, unknown>) => void;
 }
 
@@ -277,7 +283,7 @@ function setupDevWatcher(
   config: TangramsConfig,
   options: DevWatcherOptions,
 ): void {
-  const { force, clean, logger, onSchemasUpdate } = options;
+  const { force, clean, logger, root, onSchemasUpdate } = options;
   let { cachedSchemas } = options;
 
   const patterns = getWatchPatterns(config);
@@ -314,7 +320,7 @@ function setupDevWatcher(
 
         // Run cleanup if enabled
         if (clean) {
-          await runCleanup(config, logger);
+          await runCleanup(config, logger, root);
         }
 
         const result = await generate({
@@ -328,7 +334,7 @@ function setupDevWatcher(
         onSchemasUpdate(result.schemas);
 
         // Save manifest
-        await saveGenerationManifest(config, result);
+        await saveGenerationManifest(config, result, root);
 
         logger.success("Regeneration complete");
 
