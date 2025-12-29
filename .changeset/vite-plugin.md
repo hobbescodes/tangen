@@ -18,3 +18,4 @@ Add Vite plugin for configuring tangrams directly in vite.config.ts
 - Logger abstraction for clean integration with Vite's logging system
 - Generator now accepts optional logger parameter for programmatic usage
 - Additional type exports from main entry point
+- All example apps now use the Vite plugin with inline configuration
