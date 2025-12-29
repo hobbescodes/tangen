@@ -31,6 +31,8 @@
 
 import { join } from "node:path";
 
+import picomatch from "picomatch";
+
 import { analyzeCleanup, executeCleanup, needsCleanup } from "./core/cleanup";
 import { loadTangramsConfig, sourceGeneratesQuery } from "./core/config";
 import { generate } from "./core/generator";
@@ -396,18 +398,15 @@ function isWatchedFile(file: string, config: TangramsConfig): boolean {
       const docs = graphqlSource.documents;
       const patterns = Array.isArray(docs) ? docs : [docs];
 
-      // Simple check: does the file path contain any of the pattern directories?
-      // A more robust solution would use picomatch, but this is sufficient for most cases
-      for (const pattern of patterns) {
-        // Extract the directory part before any glob characters
-        const staticPart = pattern.split("*")[0] || "";
-        if (file.includes(staticPart.replace(/^\.\//, ""))) {
-          return true;
-        }
+      if (picomatch.isMatch(file, patterns)) {
+        return true;
       }
     } else if (source.type === "openapi") {
       const openApiSource = source as OpenAPISourceConfig;
-      if (!isUrl(openApiSource.spec) && file.endsWith(openApiSource.spec)) {
+      if (
+        !isUrl(openApiSource.spec) &&
+        picomatch.isMatch(file, openApiSource.spec)
+      ) {
         return true;
       }
     }
